@@ -535,6 +535,67 @@ export async function getPriceSeries(
     .reverse();
 }
 
+// === Decision Log ===
+
+export type DecisionType = "BUY" | "SELL" | "WATCH" | "SKIP";
+
+export type DecisionRow = {
+  id: number;
+  ticker: string;
+  name: string;
+  decisionDate: string;
+  decision: DecisionType;
+  reason: string | null;
+  // 결정 시점 점수 (snapshot)
+  snapshotScore: number | null;
+  snapshotMos: number | null;
+  snapshotPrice: number | null;
+  // 회고용 (현재 시점 비교)
+  currentPrice: number | null;
+  priceChange: number | null;
+  priceChangePct: number | null;
+  daysSince: number;
+};
+
+export async function getDecisions(limit = 100): Promise<DecisionRow[]> {
+  const rows = await db.execute(sql`
+    select d.id, d.ticker, d.decision_date, d.decision, d.reason, d.score_snapshot,
+           s.name,
+           (select close from prices where ticker = d.ticker order by date desc limit 1) as current_price
+    from decisions d
+    join stocks s on s.ticker = d.ticker
+    order by d.decision_date desc
+    limit ${limit}
+  `);
+  const today = new Date();
+  return rows.map((r) => {
+    const snap = (r.score_snapshot ?? {}) as Record<string, unknown>;
+    const snapPrice = (snap.price ?? null) as number | null;
+    const cur = r.current_price !== null ? Number(r.current_price) : null;
+    const priceChange = snapPrice && cur ? cur - snapPrice : null;
+    const priceChangePct = snapPrice && cur ? (cur - snapPrice) / snapPrice : null;
+    const decisionDate = String(r.decision_date);
+    const daysSince = Math.floor(
+      (today.getTime() - new Date(decisionDate).getTime()) / 86400_000,
+    );
+    return {
+      id: Number(r.id),
+      ticker: String(r.ticker),
+      name: String(r.name),
+      decisionDate,
+      decision: String(r.decision) as DecisionType,
+      reason: r.reason !== null ? String(r.reason) : null,
+      snapshotScore: snap.score !== undefined ? Number(snap.score) : null,
+      snapshotMos: snap.mos !== undefined ? Number(snap.mos) : null,
+      snapshotPrice: snapPrice,
+      currentPrice: cur,
+      priceChange,
+      priceChangePct,
+      daysSince,
+    };
+  });
+}
+
 // === Backtest queries ===
 
 export type BacktestRun = {
@@ -553,6 +614,9 @@ export type BacktestRun = {
   outperformance: number | null;
   rebalanceCount: number | null;
   totalTrades: number | null;
+  maxDrawdown: number | null;
+  sharpeRatio: number | null;
+  hitRate: number | null;
   portfolioHistory: PortfolioSnapshot[];
   trades: BacktestTrade[];
   createdAt: string;
@@ -591,6 +655,9 @@ function rowToBacktestRun(r: Record<string, unknown>): BacktestRun {
     outperformance: r.outperformance !== null ? Number(r.outperformance) : null,
     rebalanceCount: r.rebalance_count !== null ? Number(r.rebalance_count) : null,
     totalTrades: r.total_trades !== null ? Number(r.total_trades) : null,
+    maxDrawdown: r.max_drawdown !== null && r.max_drawdown !== undefined ? Number(r.max_drawdown) : null,
+    sharpeRatio: r.sharpe_ratio !== null && r.sharpe_ratio !== undefined ? Number(r.sharpe_ratio) : null,
+    hitRate: r.hit_rate !== null && r.hit_rate !== undefined ? Number(r.hit_rate) : null,
     portfolioHistory: (r.portfolio_history ?? []) as PortfolioSnapshot[],
     trades: (r.trades ?? []) as BacktestTrade[],
     createdAt: String(r.created_at),

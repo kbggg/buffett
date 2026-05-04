@@ -88,6 +88,19 @@ function runBacktest(p: Params): Promise<{ id: number }> {
 }
 
 export async function POST(req: NextRequest) {
+  // Vercel/serverless 환경에선 Python 실행 불가. 로컬 dev 또는 self-hosted 만 지원.
+  if (process.env.VERCEL === "1") {
+    return NextResponse.json(
+      {
+        error:
+          "백테스트 실행은 로컬에서만 가능합니다. " +
+          "scripts/ 디렉토리에서 'uv run python -m analysis.backtest --save' 직접 실행하세요. " +
+          "결과는 자동 동기화되어 이 페이지에서 보입니다.",
+      },
+      { status: 501 },
+    );
+  }
+
   const body = await req.json();
   const v = validate(body);
   if ("error" in v) return NextResponse.json({ error: v.error }, { status: 400 });

@@ -247,6 +247,10 @@ export const backtestRuns = pgTable("backtest_runs", {
   outperformance: numeric("outperformance", { precision: 8, scale: 4 }),
   rebalanceCount: integer("rebalance_count"),
   totalTrades: integer("total_trades"),
+  // 고급 지표
+  maxDrawdown: numeric("max_drawdown", { precision: 8, scale: 4 }), // 최대 낙폭 (fraction, 음수)
+  sharpeRatio: numeric("sharpe_ratio", { precision: 8, scale: 4 }), // 위험조정수익
+  hitRate: numeric("hit_rate", { precision: 5, scale: 4 }), // 매수 종목 +수익 비율
   // 시계열 + 거래 history (jsonb)
   portfolioHistory: jsonb("portfolio_history"), // [{date, value, holdings[], cash}]
   trades: jsonb("trades"), // [{date, ticker, action, qty, price, cost}]

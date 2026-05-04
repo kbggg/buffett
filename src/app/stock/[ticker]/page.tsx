@@ -6,6 +6,7 @@ import { Term } from "@/components/term";
 import { PriceChart } from "@/components/price-chart";
 import { FinancialsChart } from "@/components/financials-chart";
 import { RecommendationBox } from "@/components/recommendation-box";
+import { DecisionForm } from "@/components/decision-form";
 
 const TRILLION = 1_000_000_000_000;
 const BILLION = 100_000_000;
@@ -146,6 +147,16 @@ export default async function Page({
 
         {/* 권장 액션 — 매수/매도 가이드 */}
         <RecommendationBox rec={rec} currentPrice={detail.latestPrice} />
+
+        {/* 결정 기록 — 1년 후 회고용 */}
+        <DecisionForm
+          ticker={detail.ticker}
+          snapshot={{
+            score: detail.buffettScore,
+            mos: detail.marginOfSafety,
+            price: detail.latestPrice,
+          }}
+        />
 
         {/* Price chart */}
         <PriceChart ticker={detail.ticker} initialData={initialPrices} />

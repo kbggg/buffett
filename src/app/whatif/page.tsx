@@ -158,6 +158,23 @@ export default async function Page({
               negative={run.outperformance !== null && run.outperformance < 0}
             />
           </div>
+          {/* 고급 지표 */}
+          <div className="mt-4 grid grid-cols-2 gap-4 border-t border-zinc-100 pt-4 text-sm dark:border-zinc-800 sm:grid-cols-3">
+            <Stat
+              label="최대 낙폭 (MDD)"
+              value={run.maxDrawdown !== null ? fmtPct(run.maxDrawdown) : "-"}
+              negative={run.maxDrawdown !== null && run.maxDrawdown < 0}
+            />
+            <Stat
+              label="샤프 비율"
+              value={run.sharpeRatio !== null ? run.sharpeRatio.toFixed(2) : "-"}
+              positive={run.sharpeRatio !== null && run.sharpeRatio > 1}
+            />
+            <Stat
+              label="매수 적중률"
+              value={run.hitRate !== null ? `${(run.hitRate * 100).toFixed(0)}%` : "-"}
+            />
+          </div>
         </header>
 
         <BacktestChart data={chartData} />

@@ -72,6 +72,10 @@ class BacktestResult:
     total_return: float = 0  # fraction
     kospi_return: float = 0
     outperformance: float = 0
+    # 고급 지표
+    max_drawdown: float = 0  # fraction (음수)
+    sharpe_ratio: float = 0
+    hit_rate: float = 0  # 매수 종목 +수익 비율
 
 
 # === 캐시: 백테스트 시작 시 모든 데이터 한 번에 로드 ===
@@ -340,11 +344,49 @@ def run_backtest(params: BacktestParams) -> BacktestResult:
     result.kospi_return = _kospi_return_cache(cache, params.start_date, params.end_date)
     result.outperformance = result.total_return - result.kospi_return
 
+    # 고급 지표 계산
+    navs = [s.nav for s in result.history]
+    if len(navs) >= 2:
+        # Max drawdown — 누적 최고점 대비 최저점
+        peak = navs[0]
+        max_dd = 0.0
+        for n in navs:
+            if n > peak: peak = n
+            dd = (n - peak) / peak if peak > 0 else 0
+            if dd < max_dd: max_dd = dd
+        result.max_drawdown = max_dd
+
+        # Sharpe — 월별 수익률 평균 / 표준편차 × √12 (annualized).
+        # 무위험률 = 한국 국채 10년 ~3% 가정
+        rf_monthly = 0.03 / 12
+        returns = [(navs[i] / navs[i-1] - 1) for i in range(1, len(navs))]
+        if len(returns) >= 2:
+            from statistics import mean, pstdev
+            excess = [r - rf_monthly for r in returns]
+            std = pstdev(excess)
+            result.sharpe_ratio = (mean(excess) / std) * (12 ** 0.5) if std > 0 else 0
+
+    # Hit rate — 매수 후 매도까지 수익난 페어
+    buys: dict[str, list[Trade]] = {}
+    sells_with_pnl: list[float] = []
+    for t in result.trades:
+        if t.action == "BUY":
+            buys.setdefault(t.ticker, []).append(t)
+        elif t.action == "SELL" and t.ticker in buys and buys[t.ticker]:
+            buy = buys[t.ticker].pop(0)  # FIFO
+            pnl = (t.price - buy.price) / buy.price
+            sells_with_pnl.append(pnl)
+    if sells_with_pnl:
+        result.hit_rate = sum(1 for p in sells_with_pnl if p > 0) / len(sells_with_pnl)
+
     print("\n[backtest] DONE", flush=True)
     print(f"  Final NAV: {result.final_value:,.0f}", flush=True)
     print(f"  Total return: {result.total_return * 100:+.2f}%", flush=True)
     print(f"  KOSPI return: {result.kospi_return * 100:+.2f}%", flush=True)
     print(f"  Outperformance: {result.outperformance * 100:+.2f}%p", flush=True)
+    print(f"  Max drawdown: {result.max_drawdown * 100:+.2f}%", flush=True)
+    print(f"  Sharpe ratio: {result.sharpe_ratio:.2f}", flush=True)
+    print(f"  Hit rate: {result.hit_rate * 100:.0f}% ({len(sells_with_pnl)} closed)", flush=True)
     print(f"  Total trades: {len(result.trades)}", flush=True)
     return result
 
@@ -381,12 +423,14 @@ def save_result(result: BacktestResult, notes: str | None = None) -> int:
               max_positions, min_score, min_mos, tx_cost,
               final_value, total_return, kospi_return, outperformance,
               rebalance_count, total_trades,
+              max_drawdown, sharpe_ratio, hit_rate,
               portfolio_history, trades, notes
             ) values (
               :start_date, :end_date, :initial_capital, :rebalance_frequency,
               :max_positions, :min_score, :min_mos, :tx_cost,
               :final_value, :total_return, :kospi_return, :outperformance,
               :rebalance_count, :total_trades,
+              :max_drawdown, :sharpe_ratio, :hit_rate,
               cast(:portfolio_history as jsonb), cast(:trades as jsonb), :notes
             )
             returning id
@@ -405,6 +449,9 @@ def save_result(result: BacktestResult, notes: str | None = None) -> int:
             "outperformance": result.outperformance,
             "rebalance_count": len(result.history),
             "total_trades": len(result.trades),
+            "max_drawdown": result.max_drawdown,
+            "sharpe_ratio": result.sharpe_ratio,
+            "hit_rate": result.hit_rate,
             "portfolio_history": history_json,
             "trades": trades_json,
             "notes": notes,
