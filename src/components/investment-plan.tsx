@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const TX_COST = 0.004; // 보수적 0.4%
@@ -25,8 +26,12 @@ export function InvestmentPlan({
   candidates: PlanCandidate[];
 }) {
   // localStorage로 투자금액 기억
+  const router = useRouter();
   const [capital, setCapital] = useState<number>(1_000_000);
   const [hydrated, setHydrated] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [registerErr, setRegisterErr] = useState<string | null>(null);
+  const [registerOk, setRegisterOk] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -208,6 +213,61 @@ export function InvestmentPlan({
                     : "적정"
               }
             />
+          </div>
+
+          {/* 한 번에 매수 등록 */}
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-emerald-200 pt-4 dark:border-emerald-900/50">
+            <button
+              type="button"
+              disabled={registering || registerOk}
+              onClick={async () => {
+                if (!confirm(
+                  `${allocations.filter(a => a.qty > 0).length}종목을 매수 등록하시겠습니까?\n` +
+                  `합계 ${fmt(Math.round(sumTotal))}원 + 잔여 현금 ${fmt(Math.round(leftover))}원\n\n` +
+                  `※ 실제 주문은 본인이 증권사 앱에서 직접 진행하세요. 이건 기록만 남깁니다.`
+                )) return;
+                setRegistering(true);
+                setRegisterErr(null);
+                try {
+                  const res = await fetch("/api/portfolio/batch", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({
+                      date: new Date().toISOString().slice(0, 10),
+                      allocations: allocations
+                        .filter((a) => a.qty > 0)
+                        .map((a) => ({ ticker: a.ticker, qty: a.qty, price: a.currentPrice })),
+                      leftover: Math.round(leftover),
+                      capital,
+                    }),
+                  });
+                  const json = await res.json();
+                  if (!res.ok) throw new Error(json.error ?? "실패");
+                  setRegisterOk(true);
+                  setTimeout(() => router.push("/portfolio"), 800);
+                } catch (e) {
+                  setRegisterErr(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setRegistering(false);
+                }
+              }}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {registerOk
+                ? "✓ 등록 완료 — Portfolio 이동 중..."
+                : registering
+                  ? "등록 중..."
+                  : "💰 이대로 매수 등록"}
+            </button>
+            <Link
+              href="/portfolio"
+              className="text-xs text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
+            >
+              Portfolio 보기 →
+            </Link>
+            {registerErr && (
+              <p className="w-full text-xs text-rose-600">에러: {registerErr}</p>
+            )}
           </div>
         </>
       )}

@@ -278,6 +278,20 @@ export type PortfolioPosition = {
   recentNegativeEvents: number;
 };
 
+export async function getCashBalance(): Promise<{ total: number; entries: { id: number; amount: number; source: string; createdAt: string }[] }> {
+  const rows = await db.execute(sql`
+    select id, amount, source, created_at from cash_balances order by created_at desc
+  `);
+  const entries = rows.map((r) => ({
+    id: Number(r.id),
+    amount: Number(r.amount),
+    source: String(r.source),
+    createdAt: String(r.created_at),
+  }));
+  const total = entries.reduce((s, e) => s + e.amount, 0);
+  return { total, entries };
+}
+
 export async function getPortfolio(): Promise<PortfolioPosition[]> {
   const rows = await db.execute(sql`
     select p.id, p.ticker, p.buy_date, p.buy_price, p.quantity,

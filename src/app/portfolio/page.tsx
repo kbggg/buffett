@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getPortfolio, type PortfolioPosition } from "@/lib/queries";
+import { getCashBalance, getPortfolio, type PortfolioPosition } from "@/lib/queries";
 import { recommend } from "@/lib/recommendation";
 import { AddPositionForm, SellButton } from "@/components/portfolio-actions";
 import { RecommendationBadge } from "@/components/recommendation-box";
@@ -20,7 +20,7 @@ function fmtPct(v: number | null): string {
 }
 
 export default async function PortfolioPage() {
-  const positions = await getPortfolio();
+  const [positions, cash] = await Promise.all([getPortfolio(), getCashBalance()]);
   const open = positions.filter((p) => !p.isClosed);
   const closed = positions.filter((p) => p.isClosed);
 
@@ -30,6 +30,7 @@ export default async function PortfolioPage() {
   const totalPnl = totalCurrent - totalBuy;
   const totalPnlPct = totalBuy > 0 ? totalPnl / totalBuy : 0;
   const realized = closed.reduce((s, p) => s + (p.pnl ?? 0), 0);
+  const totalAssets = totalCurrent + cash.total; // 평가가치 + 현금
 
   return (
     <div className="flex-1 px-4 py-6 sm:px-8 sm:py-10">
@@ -66,6 +67,10 @@ export default async function PortfolioPage() {
               negative={realized < 0}
             />
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-4 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+            <Stat label="현금 잔액" value={fmtMoney(cash.total)} />
+            <Stat label="총 자산 (평가 + 현금)" value={fmtMoney(totalAssets)} />
+          </div>
         </header>
 
         <AddPositionForm />
@@ -79,6 +84,41 @@ export default async function PortfolioPage() {
             <PositionTable positions={open} showActions />
           )}
         </section>
+
+        {/* 현금 잔액 history */}
+        {cash.entries.length > 0 && (
+          <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="mb-4 text-base font-bold">현금 잔액 ({fmtMoney(cash.total)})</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 text-left text-xs text-zinc-500 dark:border-zinc-800">
+                    <th className="py-2">날짜</th>
+                    <th className="py-2">출처</th>
+                    <th className="py-2 text-right">금액</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cash.entries.map((e) => (
+                    <tr key={e.id} className="border-b border-zinc-100 dark:border-zinc-900">
+                      <td className="py-2 text-xs tabular-nums">{e.createdAt.slice(0, 10)}</td>
+                      <td className="py-2 text-xs text-zinc-600 dark:text-zinc-400">{e.source}</td>
+                      <td
+                        className={
+                          "py-2 text-right tabular-nums text-xs font-medium " +
+                          (e.amount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")
+                        }
+                      >
+                        {e.amount > 0 ? "+" : ""}
+                        {fmtMoney(e.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         {/* 청산 */}
         {closed.length > 0 && (
