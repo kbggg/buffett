@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
+import { getNickname } from "@/lib/nickname";
 
 /**
  * POST /api/portfolio/batch
@@ -35,19 +36,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const nickname = await getNickname();
   // 트랜잭션
   try {
     await db.transaction(async (tx) => {
       for (const a of allocations) {
         await tx.execute(sql`
-          insert into portfolio (ticker, buy_date, buy_price, quantity, notes)
-          values (${a.ticker}, ${date}, ${String(a.price)}, ${a.qty}, ${note})
+          insert into portfolio (nickname, ticker, buy_date, buy_price, quantity, notes)
+          values (${nickname}, ${a.ticker}, ${date}, ${String(a.price)}, ${a.qty}, ${note})
         `);
       }
       if (Math.round(leftover) > 0) {
         await tx.execute(sql`
-          insert into cash_balances (amount, source)
-          values (${String(Math.round(leftover))}, ${`${date} 일괄매수 잔여`})
+          insert into cash_balances (nickname, amount, source)
+          values (${nickname}, ${String(Math.round(leftover))}, ${`${date} 일괄매수 잔여`})
         `);
       }
     });

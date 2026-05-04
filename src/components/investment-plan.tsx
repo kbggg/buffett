@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const TX_COST = 0.004; // 보수적 0.4%
-const STORAGE_KEY = "buffett.investment.capital";
+
+function readCookie(name: string): string {
+  if (typeof document === "undefined") return "me";
+  const m = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return m ? decodeURIComponent(m[2]) : "me";
+}
 
 export type PlanCandidate = {
   ticker: string;
@@ -33,15 +38,24 @@ export function InvestmentPlan({
   const [registerErr, setRegisterErr] = useState<string | null>(null);
   const [registerOk, setRegisterOk] = useState(false);
 
+  // 닉네임별로 별도 저장
+  const [nickname, setNickname] = useState("me");
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) setCapital(Number(saved));
-    setHydrated(true);
+    setNickname(readCookie("buffett-nickname"));
   }, []);
+  const storageKey = `buffett.investment.capital:${nickname}`;
 
   useEffect(() => {
-    if (hydrated) localStorage.setItem(STORAGE_KEY, String(capital));
-  }, [capital, hydrated]);
+    if (!nickname) return;
+    const saved = localStorage.getItem(storageKey);
+    if (saved) setCapital(Number(saved));
+    else setCapital(1_000_000);
+    setHydrated(true);
+  }, [nickname, storageKey]);
+
+  useEffect(() => {
+    if (hydrated) localStorage.setItem(storageKey, String(capital));
+  }, [capital, hydrated, storageKey]);
 
   if (candidates.length === 0) {
     return (

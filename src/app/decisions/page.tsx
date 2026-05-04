@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getDecisions } from "@/lib/queries";
+import { getNickname } from "@/lib/nickname";
 
 const LABEL: Record<string, string> = {
   BUY: "매수",
@@ -26,7 +27,8 @@ function fmtPrice(v: number | null): string {
 }
 
 export default async function Page() {
-  const decisions = await getDecisions();
+  const nickname = await getNickname();
+  const decisions = await getDecisions(nickname);
 
   // 종합 회고 통계
   const buys = decisions.filter((d) => d.decision === "BUY");
@@ -45,7 +47,7 @@ export default async function Page() {
         </Link>
 
         <header className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h1 className="text-2xl font-bold">결정 로그 — 학습 자산</h1>
+          <h1 className="text-2xl font-bold">{nickname}의 결정 로그</h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             본인이 시점별로 내린 결정 + 그 이후 결과 = 시간 지날수록 가치 ↑.
             CLAUDE.md "본인이 안 산 종목/산 종목을 1년 후 돌아보기 위한 학습 데이터".

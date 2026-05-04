@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPortfolio, getPriceSeries, getStockDetail } from "@/lib/queries";
+import { getNickname } from "@/lib/nickname";
 
 // 1시간 캐시
 export const revalidate = 3600;
@@ -52,11 +53,12 @@ export default async function Page({
   params: Promise<{ ticker: string }>;
 }) {
   const { ticker } = await params;
+  const nickname = await getNickname();
   // 3개 쿼리 병렬 실행 (Promise.all) — 직렬 대비 ~2/3 시간 단축
   const [detail, initialPrices, portfolio] = await Promise.all([
     getStockDetail(ticker),
     getPriceSeries(ticker, 365),
-    getPortfolio(),
+    getPortfolio(nickname),
   ]);
   if (!detail) notFound();
   const holding = portfolio.find((p) => p.ticker === ticker && !p.isClosed);

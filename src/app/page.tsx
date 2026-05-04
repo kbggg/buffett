@@ -101,12 +101,18 @@ export default async function Page({
               {formatDate(calcDate)} 기준 · KOSPI · 워렌 버핏 가치투자 원칙
             </p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <a
               href="/portfolio"
               className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               Portfolio →
+            </a>
+            <a
+              href="/rankings"
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              🏆 랭킹 →
             </a>
             <a
               href="/decisions"

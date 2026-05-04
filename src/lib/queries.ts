@@ -278,9 +278,72 @@ export type PortfolioPosition = {
   recentNegativeEvents: number;
 };
 
-export async function getCashBalance(): Promise<{ total: number; entries: { id: number; amount: number; source: string; createdAt: string }[] }> {
+export type NicknameRanking = {
+  nickname: string;
+  totalBuy: number;
+  totalCurrent: number;
+  pnl: number;
+  pnlPct: number;
+  realized: number;
+  cash: number;
+  totalAssets: number;
+  positions: number;
+};
+
+export async function getNicknameRankings(): Promise<NicknameRanking[]> {
+  // 보유 종목 평가 + 현금 + 실현손익 — 닉네임별 집계
   const rows = await db.execute(sql`
-    select id, amount, source, created_at from cash_balances order by created_at desc
+    with portfolio_agg as (
+      select p.nickname,
+             sum(case when p.sell_date is null then p.buy_price * p.quantity else 0 end) as total_buy,
+             sum(case when p.sell_date is null then
+               coalesce((select close from prices pr where pr.ticker = p.ticker order by date desc limit 1), p.buy_price)
+               * p.quantity else 0 end) as total_current,
+             sum(case when p.sell_date is not null then (p.sell_price - p.buy_price) * p.quantity else 0 end) as realized,
+             count(*) filter (where p.sell_date is null) as positions
+      from portfolio p
+      group by p.nickname
+    ),
+    cash_agg as (
+      select nickname, sum(amount) as cash from cash_balances group by nickname
+    )
+    select coalesce(p.nickname, c.nickname) as nickname,
+           coalesce(p.total_buy, 0) as total_buy,
+           coalesce(p.total_current, 0) as total_current,
+           coalesce(p.realized, 0) as realized,
+           coalesce(p.positions, 0) as positions,
+           coalesce(c.cash, 0) as cash
+    from portfolio_agg p
+    full outer join cash_agg c on c.nickname = p.nickname
+    where coalesce(p.nickname, c.nickname) is not null
+  `);
+  return rows
+    .map((r) => {
+      const totalBuy = Number(r.total_buy);
+      const totalCurrent = Number(r.total_current);
+      const realized = Number(r.realized);
+      const cash = Number(r.cash);
+      const pnl = totalCurrent - totalBuy;
+      return {
+        nickname: String(r.nickname),
+        totalBuy,
+        totalCurrent,
+        pnl,
+        pnlPct: totalBuy > 0 ? pnl / totalBuy : 0,
+        realized,
+        cash,
+        totalAssets: totalCurrent + cash,
+        positions: Number(r.positions),
+      };
+    })
+    .sort((a, b) => b.pnlPct - a.pnlPct);
+}
+
+export async function getCashBalance(nickname: string): Promise<{ total: number; entries: { id: number; amount: number; source: string; createdAt: string }[] }> {
+  const rows = await db.execute(sql`
+    select id, amount, source, created_at from cash_balances
+    where nickname = ${nickname}
+    order by created_at desc
   `);
   const entries = rows.map((r) => ({
     id: Number(r.id),
@@ -292,7 +355,7 @@ export async function getCashBalance(): Promise<{ total: number; entries: { id: 
   return { total, entries };
 }
 
-export async function getPortfolio(): Promise<PortfolioPosition[]> {
+export async function getPortfolio(nickname: string): Promise<PortfolioPosition[]> {
   const rows = await db.execute(sql`
     select p.id, p.ticker, p.buy_date, p.buy_price, p.quantity,
            p.sell_date, p.sell_price, p.notes,
@@ -306,6 +369,7 @@ export async function getPortfolio(): Promise<PortfolioPosition[]> {
     left join lateral (
       select * from scores where ticker = p.ticker order by calc_date desc limit 1
     ) sc on true
+    where p.nickname = ${nickname}
     order by p.sell_date is null desc, p.buy_date desc
   `);
   return rows.map((r) => {
@@ -570,13 +634,14 @@ export type DecisionRow = {
   daysSince: number;
 };
 
-export async function getDecisions(limit = 100): Promise<DecisionRow[]> {
+export async function getDecisions(nickname: string, limit = 100): Promise<DecisionRow[]> {
   const rows = await db.execute(sql`
     select d.id, d.ticker, d.decision_date, d.decision, d.reason, d.score_snapshot,
            s.name,
            (select close from prices where ticker = d.ticker order by date desc limit 1) as current_price
     from decisions d
     join stocks s on s.ticker = d.ticker
+    where d.nickname = ${nickname}
     order by d.decision_date desc
     limit ${limit}
   `);

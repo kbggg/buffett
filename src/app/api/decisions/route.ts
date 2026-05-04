@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
+import { getNickname } from "@/lib/nickname";
 
 /**
  * POST /api/decisions    — 결정 기록
@@ -23,9 +24,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "decision must be BUY|SELL|WATCH|SKIP" }, { status: 400 });
   }
 
+  const nickname = await getNickname();
   await db.execute(sql`
-    insert into decisions (ticker, decision_date, decision, reason, score_snapshot)
-    values (${ticker}, ${decisionDate}, ${decision}, ${reason}, cast(${JSON.stringify(snapshot)} as jsonb))
+    insert into decisions (nickname, ticker, decision_date, decision, reason, score_snapshot)
+    values (${nickname}, ${ticker}, ${decisionDate}, ${decision}, ${reason}, cast(${JSON.stringify(snapshot)} as jsonb))
   `);
   return NextResponse.json({ ok: true });
 }
@@ -33,6 +35,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const id = Number(req.nextUrl.searchParams.get("id"));
   if (!Number.isInteger(id)) return NextResponse.json({ error: "id required" }, { status: 400 });
-  await db.execute(sql`delete from decisions where id = ${id}`);
+  const nickname = await getNickname();
+  await db.execute(sql`delete from decisions where id = ${id} and nickname = ${nickname}`);
   return NextResponse.json({ ok: true });
 }

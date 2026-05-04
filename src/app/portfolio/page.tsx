@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getCashBalance, getPortfolio, type PortfolioPosition } from "@/lib/queries";
+import { getNickname } from "@/lib/nickname";
 import { recommend } from "@/lib/recommendation";
 import { AddPositionForm, SellButton } from "@/components/portfolio-actions";
 import { RecommendationBadge } from "@/components/recommendation-box";
@@ -20,7 +21,8 @@ function fmtPct(v: number | null): string {
 }
 
 export default async function PortfolioPage() {
-  const [positions, cash] = await Promise.all([getPortfolio(), getCashBalance()]);
+  const nickname = await getNickname();
+  const [positions, cash] = await Promise.all([getPortfolio(nickname), getCashBalance(nickname)]);
   const open = positions.filter((p) => !p.isClosed);
   const closed = positions.filter((p) => p.isClosed);
 
@@ -45,7 +47,7 @@ export default async function PortfolioPage() {
         <header className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold">포트폴리오</h1>
+              <h1 className="text-2xl font-bold">{nickname}의 포트폴리오</h1>
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                 보유 {open.length}종목 · 청산 {closed.length}종목 · 수동 입력 (KIS 자동 동기화는 Phase 5)
               </p>

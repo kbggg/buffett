@@ -192,6 +192,7 @@ export const scores = pgTable(
 // 현금 잔액 — 매수 후 남은 현금을 추적. 종목 매도/배당으로도 늘어남.
 export const cashBalances = pgTable("cash_balances", {
   id: serial("id").primaryKey(),
+  nickname: text("nickname").notNull().default("me"), // 다중 유저
   amount: numeric("amount", { precision: 20, scale: 0 }).notNull(), // 양수=입금, 음수=출금
   source: text("source").notNull(), // "2026-05-04 일괄매수 잔여" / "수동 입금" 등
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -199,6 +200,7 @@ export const cashBalances = pgTable("cash_balances", {
 
 export const portfolio = pgTable("portfolio", {
   id: serial("id").primaryKey(),
+  nickname: text("nickname").notNull().default("me"),
   ticker: varchar("ticker", { length: 10 })
     .notNull()
     .references(() => stocks.ticker),
@@ -215,6 +217,7 @@ export const portfolio = pgTable("portfolio", {
 
 export const decisions = pgTable("decisions", {
   id: serial("id").primaryKey(),
+  nickname: text("nickname").notNull().default("me"),
   ticker: varchar("ticker", { length: 10 })
     .notNull()
     .references(() => stocks.ticker),

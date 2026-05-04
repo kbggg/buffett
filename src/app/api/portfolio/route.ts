@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
+import { getNickname } from "@/lib/nickname";
 
 /**
  * POST /api/portfolio    — 신규 매수 등록
@@ -32,9 +33,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `ticker ${ticker} not found in stocks` }, { status: 404 });
   }
 
+  const nickname = await getNickname();
   await db.execute(sql`
-    insert into portfolio (ticker, buy_date, buy_price, quantity, notes)
-    values (${ticker}, ${buyDate}, ${String(buyPrice)}, ${quantity}, ${notes})
+    insert into portfolio (nickname, ticker, buy_date, buy_price, quantity, notes)
+    values (${nickname}, ${ticker}, ${buyDate}, ${String(buyPrice)}, ${quantity}, ${notes})
   `);
   return NextResponse.json({ ok: true });
 }
@@ -47,10 +49,27 @@ export async function PATCH(req: NextRequest) {
   if (!Number.isInteger(id) || !/^\d{4}-\d{2}-\d{2}$/.test(sellDate) || !Number.isFinite(sellPrice)) {
     return NextResponse.json({ error: "id, sellDate, sellPrice required" }, { status: 400 });
   }
-  await db.execute(sql`
-    update portfolio set sell_date = ${sellDate}, sell_price = ${String(sellPrice)}
-    where id = ${id}
-  `);
+  const nickname = await getNickname();
+  // 매도 시: 1) sell 정보 update + 2) 매도금액(qty × sell_price)을 cash_balances 로
+  await db.transaction(async (tx) => {
+    const r = await tx.execute(sql`
+      select quantity, ticker from portfolio where id = ${id} and nickname = ${nickname}
+    `);
+    if (r.length === 0) throw new Error("not found");
+    const qty = Number(r[0].quantity);
+    const ticker = String(r[0].ticker);
+    const proceeds = Math.round(qty * sellPrice);
+    await tx.execute(sql`
+      update portfolio set sell_date = ${sellDate}, sell_price = ${String(sellPrice)}
+      where id = ${id} and nickname = ${nickname}
+    `);
+    if (proceeds > 0) {
+      await tx.execute(sql`
+        insert into cash_balances (nickname, amount, source)
+        values (${nickname}, ${String(proceeds)}, ${`${sellDate} ${ticker} 매도`})
+      `);
+    }
+  });
   return NextResponse.json({ ok: true });
 }
 
@@ -59,6 +78,7 @@ export async function DELETE(req: NextRequest) {
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: "id required" }, { status: 400 });
   }
-  await db.execute(sql`delete from portfolio where id = ${id}`);
+  const nickname = await getNickname();
+  await db.execute(sql`delete from portfolio where id = ${id} and nickname = ${nickname}`);
   return NextResponse.json({ ok: true });
 }

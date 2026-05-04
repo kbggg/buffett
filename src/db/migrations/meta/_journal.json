@@ -64,6 +64,13 @@
       "when": 1777891662745,
       "tag": "0008_add_cash_balances",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777893816471,
+      "tag": "0009_add_nickname_to_user_data",
+      "breakpoints": true
     }
   ]
 }
