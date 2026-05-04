@@ -349,72 +349,71 @@ export type AnnualSummary = {
 };
 
 export async function getStockDetail(ticker: string): Promise<StockDetail | null> {
-  const stk = await db
-    .select({
-      ticker: stocks.ticker,
-      name: stocks.name,
-      market: stocks.market,
-      marketCap: stocks.marketCap,
-      sharesOutstanding: stocks.sharesOutstanding,
-    })
-    .from(stocks)
-    .where(eq(stocks.ticker, ticker))
-    .limit(1);
+  // 5개 쿼리 병렬 실행 — 직렬 대비 ~5배 빠름 (Vercel→Supabase 싱가포르 high latency 환경)
+  const [stk, sc, annualRows, eventRows, latestPriceRow] = await Promise.all([
+    db
+      .select({
+        ticker: stocks.ticker,
+        name: stocks.name,
+        market: stocks.market,
+        marketCap: stocks.marketCap,
+        sharesOutstanding: stocks.sharesOutstanding,
+      })
+      .from(stocks)
+      .where(eq(stocks.ticker, ticker))
+      .limit(1),
+    db
+      .select({
+        buffettScore: scores.buffettScore,
+        marginOfSafety: scores.marginOfSafety,
+        timingSignal: scores.timingSignal,
+        intrinsicDcf: scores.intrinsicDcf,
+        intrinsicOwnerEarnings: scores.intrinsicOwnerEarnings,
+        intrinsicGraham: scores.intrinsicGraham,
+        intrinsicAvg: scores.intrinsicAvg,
+        breakdown: scores.breakdown,
+      })
+      .from(scores)
+      .where(eq(scores.ticker, ticker))
+      .orderBy(desc(scores.calcDate))
+      .limit(1),
+    db
+      .select({
+        fiscalYear: financials.fiscalYear,
+        reportDate: financials.reportDate,
+        revenue: financials.revenue,
+        operatingIncome: financials.operatingIncome,
+        netIncome: financials.netIncome,
+        totalEquity: financials.totalEquity,
+        equityAttributableToOwners: financials.equityAttributableToOwners,
+        totalAssets: financials.totalAssets,
+        totalLiabilities: financials.totalLiabilities,
+        currentAssets: financials.currentAssets,
+        currentLiabilities: financials.currentLiabilities,
+        operatingCashFlow: financials.operatingCashFlow,
+        capex: financials.capex,
+        eps: financials.eps,
+      })
+      .from(financials)
+      .where(and(eq(financials.ticker, ticker), eq(financials.periodType, "A")))
+      .orderBy(desc(financials.fiscalYear)),
+    db
+      .select({
+        eventDate: events.eventDate,
+        eventType: events.eventType,
+        category: events.category,
+        title: events.title,
+      })
+      .from(events)
+      .where(eq(events.ticker, ticker))
+      .orderBy(desc(events.eventDate))
+      .limit(50),
+    db.execute(sql`
+      select close from prices where ticker = ${ticker} order by date desc limit 1
+    `),
+  ]);
   if (stk.length === 0) return null;
   const s = stk[0];
-
-  const sc = await db
-    .select({
-      buffettScore: scores.buffettScore,
-      marginOfSafety: scores.marginOfSafety,
-      timingSignal: scores.timingSignal,
-      intrinsicDcf: scores.intrinsicDcf,
-      intrinsicOwnerEarnings: scores.intrinsicOwnerEarnings,
-      intrinsicGraham: scores.intrinsicGraham,
-      intrinsicAvg: scores.intrinsicAvg,
-      breakdown: scores.breakdown,
-    })
-    .from(scores)
-    .where(eq(scores.ticker, ticker))
-    .orderBy(desc(scores.calcDate))
-    .limit(1);
-
-  const annualRows = await db
-    .select({
-      fiscalYear: financials.fiscalYear,
-      reportDate: financials.reportDate,
-      revenue: financials.revenue,
-      operatingIncome: financials.operatingIncome,
-      netIncome: financials.netIncome,
-      totalEquity: financials.totalEquity,
-      equityAttributableToOwners: financials.equityAttributableToOwners,
-      totalAssets: financials.totalAssets,
-      totalLiabilities: financials.totalLiabilities,
-      currentAssets: financials.currentAssets,
-      currentLiabilities: financials.currentLiabilities,
-      operatingCashFlow: financials.operatingCashFlow,
-      capex: financials.capex,
-      eps: financials.eps,
-    })
-    .from(financials)
-    .where(and(eq(financials.ticker, ticker), eq(financials.periodType, "A")))
-    .orderBy(desc(financials.fiscalYear));
-
-  const eventRows = await db
-    .select({
-      eventDate: events.eventDate,
-      eventType: events.eventType,
-      category: events.category,
-      title: events.title,
-    })
-    .from(events)
-    .where(eq(events.ticker, ticker))
-    .orderBy(desc(events.eventDate))
-    .limit(50);
-
-  const latestPriceRow = await db.execute(sql`
-    select close from prices where ticker = ${ticker} order by date desc limit 1
-  `);
   const latestPrice =
     latestPriceRow.length > 0 && latestPriceRow[0].close !== null
       ? Number(latestPriceRow[0].close)

@@ -9,6 +9,10 @@ import {
 } from "@/lib/queries";
 import { BacktestChart } from "@/components/backtest-chart";
 
+// 백테스트는 사용자가 명시 실행. 30분 캐시.
+export const revalidate = 1800;
+
+
 const TRILLION = 1_000_000_000_000;
 const BILLION = 100_000_000;
 const MILLION = 1_000_000;

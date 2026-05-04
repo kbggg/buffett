@@ -1,6 +1,9 @@
 import { getCandidates, getCounts, getLatestCalcDate } from "@/lib/queries";
 import { CandidateCard } from "@/components/candidate-card";
 
+// 점수는 일별 cron으로만 갱신 — 1시간 캐시로 충분
+export const revalidate = 3600;
+
 const TRILLION = 1_000_000_000_000;
 
 function formatMarketCap(mc: number | null): string {

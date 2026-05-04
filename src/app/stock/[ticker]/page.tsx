@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPortfolio, getPriceSeries, getStockDetail } from "@/lib/queries";
+
+// 1시간 캐시
+export const revalidate = 3600;
+
 import { recommend } from "@/lib/recommendation";
 import { Term } from "@/components/term";
 import { PriceChart } from "@/components/price-chart";
@@ -48,11 +52,13 @@ export default async function Page({
   params: Promise<{ ticker: string }>;
 }) {
   const { ticker } = await params;
-  const detail = await getStockDetail(ticker);
+  // 3개 쿼리 병렬 실행 (Promise.all) — 직렬 대비 ~2/3 시간 단축
+  const [detail, initialPrices, portfolio] = await Promise.all([
+    getStockDetail(ticker),
+    getPriceSeries(ticker, 365),
+    getPortfolio(),
+  ]);
   if (!detail) notFound();
-
-  const initialPrices = await getPriceSeries(ticker, 365);
-  const portfolio = await getPortfolio();
   const holding = portfolio.find((p) => p.ticker === ticker && !p.isClosed);
   const recentNeg = detail.events.filter(
     (e) =>
