@@ -1,5 +1,6 @@
 import { getCandidates, getCounts, getLatestCalcDate } from "@/lib/queries";
 import { CandidateCard } from "@/components/candidate-card";
+import { InvestmentPlan, type PlanCandidate } from "@/components/investment-plan";
 
 // 점수는 일별 cron으로만 갱신 — 1시간 캐시로 충분
 export const revalidate = 3600;
@@ -37,17 +38,40 @@ export default async function Page({
 }) {
   const { filter = "buy", q = "", sort = "score", cycle = "all" } = await searchParams;
   const calcDate = await getLatestCalcDate();
-  const counts = calcDate ? await getCounts(calcDate) : { all: 0, valuePass: 0, buy: 0 };
+  const [counts, buyNowList, candidatesAll] = calcDate
+    ? await Promise.all([
+        getCounts(calcDate),
+        getCandidates({
+          calcDate, minScore: 80, minMos: 0.3, timingOnly: ["BUY"], limit: 50,
+        }),
+        getCandidates(
+          filter === "buy"
+            ? { calcDate, minScore: 80, minMos: 0.3, timingOnly: ["BUY"], limit: 200 }
+            : filter === "value"
+              ? { calcDate, minScore: 80, minMos: 0.3, limit: 200 }
+              : { calcDate, limit: 500 },
+        ),
+      ])
+    : [{ all: 0, valuePass: 0, buy: 0 }, [], []];
 
-  let candidates = calcDate
-    ? await getCandidates(
-        filter === "buy"
-          ? { calcDate, minScore: 80, minMos: 0.3, timingOnly: ["BUY"], limit: 200 }
-          : filter === "value"
-            ? { calcDate, minScore: 80, minMos: 0.3, limit: 200 }
-            : { calcDate, limit: 500 },
-      )
-    : [];
+  // 투자 계획용 — 3중 통과 종목 + 현재가 추출 (breakdown.timing.current_price)
+  const planCandidates: PlanCandidate[] = buyNowList
+    .map((c) => {
+      const cp = c.breakdown?.timing?.current_price;
+      const price = typeof cp === "number" ? cp : null;
+      if (!price || c.marginOfSafety === null) return null;
+      return {
+        ticker: c.ticker,
+        name: c.name,
+        market: c.market,
+        currentPrice: price,
+        buffettScore: c.buffettScore,
+        marginOfSafety: c.marginOfSafety,
+      };
+    })
+    .filter((c): c is PlanCandidate => c !== null);
+
+  let candidates = candidatesAll;
 
   // 검색 필터
   if (q) {
@@ -98,6 +122,11 @@ export default async function Page({
             </a>
           </div>
         </header>
+
+        {/* 오늘 투자 계획 — 매수후보 3중 통과 종목에 동등 분배 */}
+        <div className="mb-6">
+          <InvestmentPlan candidates={planCandidates} />
+        </div>
 
         <form className="mb-4 flex flex-wrap items-center gap-2" action="/" method="get">
           <input type="hidden" name="filter" value={filter} />
