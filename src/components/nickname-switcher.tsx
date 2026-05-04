@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -61,14 +62,23 @@ export function NicknameSwitcher({ current }: { current: string }) {
   }
 
   return (
-    <button
-      onClick={() => setEditing(true)}
-      className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-      title="닉네임 변경"
-    >
-      <span>👤</span>
-      <span className="font-medium">{current}</span>
-      <span className="text-zinc-400">✎</span>
-    </button>
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => setEditing(true)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        title="닉네임 변경"
+      >
+        <span>👤</span>
+        <span className="font-medium">{current}</span>
+        <span className="text-zinc-400">✎</span>
+      </button>
+      <Link
+        href="/profile"
+        className="rounded-full border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+        title="프로필 관리"
+      >
+        ⚙️
+      </Link>
+    </div>
   );
 }
