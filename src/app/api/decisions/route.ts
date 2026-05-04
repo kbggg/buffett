@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { getNickname } from "@/lib/nickname";
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     insert into decisions (nickname, ticker, decision_date, decision, reason, score_snapshot)
     values (${nickname}, ${ticker}, ${decisionDate}, ${decision}, ${reason}, cast(${JSON.stringify(snapshot)} as jsonb))
   `);
-  return NextResponse.json({ ok: true });
+  revalidatePath("/decisions"); return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest) {
@@ -37,5 +38,5 @@ export async function DELETE(req: NextRequest) {
   if (!Number.isInteger(id)) return NextResponse.json({ error: "id required" }, { status: 400 });
   const nickname = await getNickname();
   await db.execute(sql`delete from decisions where id = ${id} and nickname = ${nickname}`);
-  return NextResponse.json({ ok: true });
+  revalidatePath("/decisions"); return NextResponse.json({ ok: true });
 }

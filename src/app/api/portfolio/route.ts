@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { getNickname } from "@/lib/nickname";
+
+function revalidateUserPaths() {
+  revalidatePath("/");
+  revalidatePath("/portfolio");
+  revalidatePath("/rankings");
+}
 
 /**
  * POST /api/portfolio    — 신규 매수 등록
@@ -38,7 +45,7 @@ export async function POST(req: NextRequest) {
     insert into portfolio (nickname, ticker, buy_date, buy_price, quantity, notes)
     values (${nickname}, ${ticker}, ${buyDate}, ${String(buyPrice)}, ${quantity}, ${notes})
   `);
-  return NextResponse.json({ ok: true });
+  revalidateUserPaths(); return NextResponse.json({ ok: true });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -70,7 +77,7 @@ export async function PATCH(req: NextRequest) {
       `);
     }
   });
-  return NextResponse.json({ ok: true });
+  revalidateUserPaths(); return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest) {
@@ -80,5 +87,5 @@ export async function DELETE(req: NextRequest) {
   }
   const nickname = await getNickname();
   await db.execute(sql`delete from portfolio where id = ${id} and nickname = ${nickname}`);
-  return NextResponse.json({ ok: true });
+  revalidateUserPaths(); return NextResponse.json({ ok: true });
 }

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { getDecisions } from "@/lib/queries";
 import { getNickname } from "@/lib/nickname";
 
+export const dynamic = "force-dynamic";
+
 const LABEL: Record<string, string> = {
   BUY: "매수",
   SELL: "매도",

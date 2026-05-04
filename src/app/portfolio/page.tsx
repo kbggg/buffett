@@ -4,6 +4,10 @@ import { getNickname } from "@/lib/nickname";
 import { recommend } from "@/lib/recommendation";
 import { AddPositionForm, SellButton } from "@/components/portfolio-actions";
 import { RecommendationBadge } from "@/components/recommendation-box";
+import { BulkSell } from "@/components/bulk-sell";
+
+// 사용자 데이터 — 캐시 X. 매수/매도 즉시 반영.
+export const dynamic = "force-dynamic";
 
 const MILLION = 1_000_000;
 const BILLION = 100_000_000;
@@ -74,6 +78,30 @@ export default async function PortfolioPage() {
             <Stat label="총 자산 (평가 + 현금)" value={fmtMoney(totalAssets)} />
           </div>
         </header>
+
+        {/* 매도 신호 일괄 처리 */}
+        {(() => {
+          const targets = open
+            .map((p) => {
+              const rec = recommend({
+                buffettScore: p.buffettScore,
+                marginOfSafety: p.marginOfSafety,
+                timingSignal: p.timingSignal,
+                intrinsicAvg: p.intrinsicAvg,
+                recentNegativeEvents: p.recentNegativeEvents,
+                isHolding: true,
+                buyPrice: p.buyPrice,
+              });
+              return { position: p, reason: rec.reason, action: rec.action };
+            })
+            .filter((t) => t.action === "SELL_REVIEW" || t.action === "SELL_URGENT")
+            .map((t) => ({
+              position: t.position,
+              reason: t.reason,
+              urgency: t.action === "SELL_URGENT" ? ("urgent" as const) : ("review" as const),
+            }));
+          return targets.length > 0 ? <BulkSell targets={targets} /> : null;
+        })()}
 
         <AddPositionForm />
 

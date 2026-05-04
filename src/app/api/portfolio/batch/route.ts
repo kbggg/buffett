@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { getNickname } from "@/lib/nickname";
@@ -58,5 +59,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
+  revalidatePath("/");
+  revalidatePath("/portfolio");
+  revalidatePath("/rankings");
   return NextResponse.json({ ok: true, count: allocations.length });
 }

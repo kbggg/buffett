@@ -1,9 +1,11 @@
-import { getCandidates, getCounts, getLatestCalcDate } from "@/lib/queries";
+import { getCandidates, getCounts, getLatestCalcDate, getPortfolio } from "@/lib/queries";
+import { getNickname } from "@/lib/nickname";
 import { CandidateCard } from "@/components/candidate-card";
 import { InvestmentPlan, type PlanCandidate } from "@/components/investment-plan";
+import { SellAlerts } from "@/components/sell-alerts";
 
-// 점수는 일별 cron으로만 갱신 — 1시간 캐시로 충분
-export const revalidate = 3600;
+// 매도 신호 + 사용자 포트폴리오 즉시 반영. scores는 자체적으로 일별만 변하므로 OK.
+export const dynamic = "force-dynamic";
 
 const TRILLION = 1_000_000_000_000;
 
@@ -37,8 +39,9 @@ export default async function Page({
   searchParams: Promise<{ filter?: FilterParam; q?: string; sort?: SortParam; cycle?: CycleFilter }>;
 }) {
   const { filter = "buy", q = "", sort = "score", cycle = "all" } = await searchParams;
+  const nickname = await getNickname();
   const calcDate = await getLatestCalcDate();
-  const [counts, buyNowList, candidatesAll] = calcDate
+  const [counts, buyNowList, candidatesAll, holdings] = calcDate
     ? await Promise.all([
         getCounts(calcDate),
         getCandidates({
@@ -51,8 +54,9 @@ export default async function Page({
               ? { calcDate, minScore: 80, minMos: 0.3, limit: 200 }
               : { calcDate, limit: 500 },
         ),
+        getPortfolio(nickname),
       ])
-    : [{ all: 0, valuePass: 0, buy: 0 }, [], []];
+    : [{ all: 0, valuePass: 0, buy: 0 }, [], [], []];
 
   // 투자 계획용 — 3중 통과 종목 + 현재가 추출 (breakdown.timing.current_price)
   const planCandidates: PlanCandidate[] = buyNowList
@@ -128,6 +132,11 @@ export default async function Page({
             </a>
           </div>
         </header>
+
+        {/* 매도 신호 — 보유 종목 중 매도 검토/긴급 매도 */}
+        <div className="mb-6">
+          <SellAlerts positions={holdings} nickname={nickname} />
+        </div>
 
         {/* 오늘 투자 계획 — 매수후보 3중 통과 종목에 동등 분배 */}
         <div className="mb-6">

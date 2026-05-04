@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getNicknameRankings } from "@/lib/queries";
 import { getNickname } from "@/lib/nickname";
 
-export const revalidate = 300; // 5분 캐시
+export const dynamic = "force-dynamic"; // 닉네임/포트폴리오 즉시 반영
 
 const MILLION = 1_000_000;
 const BILLION = 100_000_000;
