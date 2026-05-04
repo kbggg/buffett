@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { getKospiSeries, getLatestBacktest } from "@/lib/queries";
+import {
+  getBacktestById,
+  getBacktestHistory,
+  getKospiSeries,
+  getLatestBacktest,
+  getStockNames,
+} from "@/lib/queries";
 import { BacktestChart } from "@/components/backtest-chart";
 
 const TRILLION = 1_000_000_000_000;
@@ -17,8 +23,14 @@ function fmtPct(v: number): string {
   return `${v >= 0 ? "+" : ""}${(v * 100).toFixed(2)}%`;
 }
 
-export default async function Page() {
-  const run = await getLatestBacktest();
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string }>;
+}) {
+  const { id } = await searchParams;
+  const run = id ? await getBacktestById(Number(id)) : await getLatestBacktest();
+  const history = await getBacktestHistory(10);
 
   if (!run) {
     return (
@@ -65,18 +77,28 @@ export default async function Page() {
     };
   });
 
-  // 마지막 5개 거래
+  // 마지막 거래들 + 종목명 매핑
   const recentTrades = run.trades.slice(-15).reverse();
+  const tickersInTrades = Array.from(new Set(run.trades.map((t) => t.ticker)));
+  const nameByTicker = await getStockNames(tickersInTrades);
 
   return (
     <div className="flex-1 px-4 py-6 sm:px-8 sm:py-10">
       <div className="mx-auto max-w-5xl space-y-6">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-        >
-          ← Today
-        </Link>
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            ← Today
+          </Link>
+          <Link
+            href="/whatif/new"
+            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            + 새 백테스트
+          </Link>
+        </div>
 
         <header className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h1 className="text-2xl font-bold">What If — 시스템 따랐다면?</h1>
@@ -131,9 +153,10 @@ export default async function Page() {
                 {recentTrades.map((t, i) => (
                   <tr key={i} className="border-b border-zinc-100 dark:border-zinc-900">
                     <td className="py-1.5 tabular-nums text-xs">{t.date}</td>
-                    <td className="py-1.5 font-mono text-xs">
+                    <td className="py-1.5 text-xs">
                       <Link href={`/stock/${t.ticker}`} className="hover:underline">
-                        {t.ticker}
+                        <span className="font-medium">{nameByTicker[t.ticker] ?? "-"}</span>
+                        <span className="ml-1.5 font-mono text-zinc-400">{t.ticker}</span>
                       </Link>
                     </td>
                     <td className="py-1.5 text-center">
@@ -162,9 +185,74 @@ export default async function Page() {
           </div>
         </section>
 
+        {history.length > 1 && (
+          <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="mb-4 text-base font-bold">백테스트 history (최근 10건)</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 text-left text-xs text-zinc-500 dark:border-zinc-800">
+                    <th className="py-2">실행</th>
+                    <th className="py-2">기간</th>
+                    <th className="py-2 text-center">주기</th>
+                    <th className="py-2 text-right">N</th>
+                    <th className="py-2 text-right">시스템</th>
+                    <th className="py-2 text-right">KOSPI</th>
+                    <th className="py-2 text-right">초과</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((h) => {
+                    const isCurrent = run?.id === h.id;
+                    return (
+                      <tr
+                        key={h.id}
+                        className={
+                          "border-b border-zinc-100 dark:border-zinc-900 " +
+                          (isCurrent ? "bg-emerald-50 dark:bg-emerald-950/20" : "")
+                        }
+                      >
+                        <td className="py-1.5 text-xs">
+                          <Link href={`/whatif?id=${h.id}`} className="hover:underline">
+                            #{h.id} {isCurrent && "← 현재"}
+                          </Link>
+                        </td>
+                        <td className="py-1.5 text-xs tabular-nums text-zinc-600 dark:text-zinc-400">
+                          {h.startDate}~{h.endDate}
+                        </td>
+                        <td className="py-1.5 text-center text-xs">
+                          {h.rebalanceFrequency === "monthly" ? "월" : "분기"}/{h.maxPositions}
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums text-xs">{h.maxPositions}</td>
+                        <td className="py-1.5 text-right tabular-nums text-xs">
+                          {h.totalReturn !== null ? fmtPct(h.totalReturn) : "-"}
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums text-xs text-zinc-500">
+                          {h.kospiReturn !== null ? fmtPct(h.kospiReturn) : "-"}
+                        </td>
+                        <td
+                          className={
+                            "py-1.5 text-right tabular-nums text-xs font-medium " +
+                            (h.outperformance !== null && h.outperformance > 0
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : h.outperformance !== null && h.outperformance < 0
+                                ? "text-rose-600 dark:text-rose-400"
+                                : "")
+                          }
+                        >
+                          {h.outperformance !== null ? fmtPct(h.outperformance) : "-"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
         <footer className="text-xs text-zinc-500 dark:text-zinc-400">
-          ⚠️ 데이터 한계: 현재 financials는 Y2024 + Y2025만. Y2023~Y2021 백필 후 5년
-          백테스트 가능. 위 결과는 1년치 시범 운영.
+          ⚠️ 데이터 한계: 현재 financials는 Y2025+Y2024 정상 + Y2023 부분(~37%). Y2022/Y2021 backfill 후 5년 백테스트 가능.
         </footer>
       </div>
     </div>

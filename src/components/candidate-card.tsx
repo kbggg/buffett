@@ -181,13 +181,18 @@ export function CandidateCard({
       )}
 
       {timing && (
-        <div className="mt-auto border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+        <div className="border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
           <span>52주 위치 {timing.pos_52w !== null && timing.pos_52w !== undefined ? `${Math.round(timing.pos_52w * 100)}%` : "-"}</span>
           <span className="mx-2">·</span>
           <span>RSI {timing.rsi_14 !== null && timing.rsi_14 !== undefined ? Math.round(timing.rsi_14) : "-"}</span>
           <span className="mx-2">·</span>
           <span>{timing.above_ma200 ? "200일선 ↑" : "200일선 ↓"}</span>
         </div>
+      )}
+      {c.fundamentalsAsOf && (
+        <p className="mt-auto text-[10px] text-zinc-400 dark:text-zinc-500">
+          ⓘ 재무 기준: FY{c.fiscalYear} 사업보고서 ({c.fundamentalsAsOf} 공시) · 가격은 직전 거래일
+        </p>
       )}
     </article>
   );

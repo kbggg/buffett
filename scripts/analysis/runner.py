@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Iterable
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -20,7 +20,9 @@ import pandas as pd  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from sync.db import get_engine  # noqa: E402
-from analysis.score import Annual, ScoreInput, compute_score, ScoreResult  # noqa: E402
+from analysis.score import (  # noqa: E402
+    Annual, ScoreInput, compute_score, ScoreResult, RecentEventCounts,
+)
 from analysis.intrinsic import compute_intrinsic, IntrinsicResult  # noqa: E402
 from analysis.timing import compute_timing, TimingResult  # noqa: E402
 
@@ -81,6 +83,24 @@ def _load_market(
     return market_cap, shares, price
 
 
+def _load_event_counts(conn, ticker: str, as_of: date, days: int = 90) -> RecentEventCounts:
+    rows = conn.execute(text(
+        """
+        select category, count(*) as n
+        from events
+        where ticker = :t and event_date >= :start and event_date <= :end
+        group by category
+        """
+    ), {"t": ticker, "start": as_of - timedelta(days=days), "end": as_of}).all()
+    pos = neg = 0
+    for r in rows:
+        if r.category == "positive":
+            pos = int(r.n)
+        elif r.category == "negative":
+            neg = int(r.n)
+    return RecentEventCounts(positive=pos, negative=neg)
+
+
 def _load_prices(conn, ticker: str, as_of: date, days: int = 300) -> pd.DataFrame:
     """타이밍 신호 계산용. 최근 300거래일치 (52w + MA200 모두 커버)."""
     rows = conn.execute(text(
@@ -139,7 +159,10 @@ def run_one(
     if not annuals:
         return None
     market_cap, shares, price = _load_market(conn, ticker, as_of)
-    sr = compute_score(ScoreInput(ticker=ticker, annuals=annuals, market_cap=market_cap))
+    events_counts = _load_event_counts(conn, ticker, as_of)
+    sr = compute_score(ScoreInput(
+        ticker=ticker, annuals=annuals, market_cap=market_cap, events=events_counts,
+    ))
     ir = compute_intrinsic(annuals, shares, price)
     prices_df = _load_prices(conn, ticker, as_of)
     tr = compute_timing(prices_df, as_of)

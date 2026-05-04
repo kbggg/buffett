@@ -59,10 +59,18 @@ class Annual:
 
 
 @dataclass
+class RecentEventCounts:
+    """최근 90일 DART 공시 카테고리 카운트 — score.event_impact 입력."""
+    positive: int = 0
+    negative: int = 0
+
+
+@dataclass
 class ScoreInput:
     ticker: str
     annuals: list[Annual]  # 최근 → 과거 순(내림차순) 또는 무관, 정렬은 내부에서
     market_cap: Optional[int]
+    events: RecentEventCounts = field(default_factory=RecentEventCounts)
 
 
 @dataclass
@@ -254,6 +262,25 @@ def _stability(annuals: list[Annual]) -> ComponentScore:
     return ComponentScore("stability", score, 10, details)
 
 
+def _event_impact(events: RecentEventCounts) -> ComponentScore:
+    """최근 90일 공시 영향 — 최대 +10 / 최소 -10.
+
+    부정 이벤트는 가중치 ×2 (Buffett: 손실 회피).
+    """
+    raw = events.positive * 1 - events.negative * 2
+    score = max(-10, min(10, raw))
+    return ComponentScore(
+        name="event_impact",
+        score=score,
+        max_score=10,
+        details={
+            "positive": events.positive,
+            "negative": events.negative,
+            "raw_calc": f"+{events.positive} ×1 − {events.negative} ×2 = {raw}",
+        },
+    )
+
+
 def _oe_yield(annuals: list[Annual], market_cap: Optional[int]) -> ComponentScore:
     details: dict = {}
     if not annuals or market_cap is None or market_cap == 0:
@@ -282,8 +309,11 @@ def compute_score(inp: ScoreInput) -> ScoreResult:
         _growth(annuals),
         _stability(annuals),
         _oe_yield(annuals, inp.market_cap),
+        _event_impact(inp.events),
     ]
-    total = sum(c.score for c in components)
+    # 합계는 0~100으로 클립 (event_impact 가 음수면 base 점수 깎임)
+    raw_total = sum(c.score for c in components)
+    total = max(0.0, min(100.0, raw_total))
     return ScoreResult(
         ticker=inp.ticker,
         total=total,

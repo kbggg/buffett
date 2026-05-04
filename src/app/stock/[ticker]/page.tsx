@@ -84,6 +84,12 @@ export default async function Page({
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                 {detail.ticker} · {detail.market} · 시총 {fmtMoney(detail.marketCap)} · 현재가 {fmtPrice(detail.latestPrice)}
               </p>
+              {detail.annuals.length > 0 && (
+                <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+                  ⓘ 재무 기준: FY{detail.annuals[0].fiscalYear} 사업보고서 ({detail.annuals[0].reportDate} 공시) ·
+                  Y{(detail.annuals[0].fiscalYear ?? 0) + 1} Q1은 5/15까지 자동 갱신
+                </p>
+              )}
             </div>
             {detail.timingSignal && (
               <span className="shrink-0 rounded-full bg-zinc-100 px-3 py-1 text-sm font-medium dark:bg-zinc-800">

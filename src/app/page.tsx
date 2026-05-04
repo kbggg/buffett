@@ -54,12 +54,20 @@ export default async function Page({
               {formatDate(calcDate)} 기준 · KOSPI · 워렌 버핏 가치투자 원칙
             </p>
           </div>
-          <a
-            href="/whatif"
-            className="shrink-0 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            What If →
-          </a>
+          <div className="flex shrink-0 gap-2">
+            <a
+              href="/portfolio"
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              Portfolio →
+            </a>
+            <a
+              href="/whatif"
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              What If →
+            </a>
+          </div>
         </header>
 
         <nav className="mb-6 flex flex-wrap gap-2" aria-label="필터">

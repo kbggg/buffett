@@ -31,42 +31,39 @@ from sqlalchemy import text  # noqa: E402
 from sync import env  # noqa: F401, E402
 from sync.db import get_engine  # noqa: E402
 
-# 키워드 → (event_type, category)
+# 키워드 → category. negative 우선 (체크 순서 중요).
 NEG_KEYWORDS = [
-    ("횡령", "negative"),
-    ("배임", "negative"),
-    ("소송", "negative"),
-    ("관리종목지정", "negative"),
-    ("회계처리기준", "negative"),
-    ("불성실공시", "negative"),
-    ("거래정지", "negative"),
-    ("상장폐지", "negative"),
+    "횡령", "배임", "소송", "관리종목지정", "회계처리위반", "회계처리기준위반",
+    "불성실공시", "거래정지", "상장폐지", "투자주의환기",
+    "감사의견 의견거절", "감자결정", "주식병합", "감액결정",
+    "유상증자결정",  # 신주발행 = 기존주주 희석. Buffett 일반 부정적
 ]
 POS_KEYWORDS = [
-    ("자기주식취득결정", "positive"),
-    ("자기주식취득결과", "positive"),
-    ("무상증자결정", "positive"),
-    ("현금배당결정", "positive"),
-    ("주식분할결정", "positive"),
+    "자기주식취득", "자기주식취득결과", "자기주식취득결정",
+    "무상증자결정", "주식분할결정",
+    "현금배당", "현물배당",  # "현금ㆍ현물배당결정" 부분일치
+    "매출액또는손익구조30",  # 30% 변경 — 방향 미상이라 일단 positive (분류 정제 여지)
 ]
 INFO_KEYWORDS = [
-    ("사업보고서", "info"),
-    ("반기보고서", "info"),
-    ("분기보고서", "info"),
+    "사업보고서", "반기보고서", "분기보고서",
+    "주요사항보고서",
 ]
 NEUTRAL_DEFAULT = "neutral"
 
 
 def classify(report_nm: str) -> str:
-    for kw, cat in NEG_KEYWORDS:
+    if not report_nm:
+        return NEUTRAL_DEFAULT
+    # negative 우선 — 손익변경에 "감소" 들어있으면 부정으로 reclassify
+    for kw in NEG_KEYWORDS:
         if kw in report_nm:
-            return cat
-    for kw, cat in POS_KEYWORDS:
+            return "negative"
+    for kw in POS_KEYWORDS:
         if kw in report_nm:
-            return cat
-    for kw, cat in INFO_KEYWORDS:
+            return "positive"
+    for kw in INFO_KEYWORDS:
         if kw in report_nm:
-            return cat
+            return "info"
     return NEUTRAL_DEFAULT
 
 

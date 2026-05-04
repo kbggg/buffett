@@ -18,6 +18,9 @@ export type Candidate = {
   per: number | null;
   // 최근 90일 이벤트 (Tier 1: DART 공시 + 임원지분 + 거래량 급변)
   recentEvents: EventItem[];
+  // 점수 산출의 기준 — 가장 최근 사업보고서 시점
+  fundamentalsAsOf: string | null; // YYYY-MM-DD (report_date of latest annual)
+  fiscalYear: number | null;
 };
 
 export type EventItem = {
@@ -105,6 +108,7 @@ export async function getCandidates(opts: {
         .select({
           ticker: financials.ticker,
           fiscalYear: financials.fiscalYear,
+          reportDate: financials.reportDate,
           totalEquity: financials.totalEquity,
           equityAttributable: financials.equityAttributableToOwners,
           netIncome: financials.netIncome,
@@ -120,6 +124,7 @@ export async function getCandidates(opts: {
       totalEquity: string | null;
       equityAttributable: string | null;
       netIncome: string | null;
+      reportDate: string | null;
       _y: number;
     }
   >();
@@ -130,6 +135,7 @@ export async function getCandidates(opts: {
         totalEquity: r.totalEquity,
         equityAttributable: r.equityAttributable,
         netIncome: r.netIncome,
+        reportDate: r.reportDate ? String(r.reportDate) : null,
         _y: r.fiscalYear,
       });
     }
@@ -188,6 +194,8 @@ export async function getCandidates(opts: {
       pbr,
       per,
       recentEvents: eventsByTicker.get(r.ticker) ?? [],
+      fundamentalsAsOf: fin?.reportDate ?? null,
+      fiscalYear: fin?._y ?? null,
     };
   });
 }
@@ -212,6 +220,68 @@ export type StockDetail = {
   annuals: AnnualSummary[];
   events: EventItem[];
 };
+
+export type PortfolioPosition = {
+  id: number;
+  ticker: string;
+  name: string;
+  market: "KOSPI" | "KOSDAQ";
+  buyDate: string;
+  buyPrice: number;
+  quantity: number;
+  sellDate: string | null;
+  sellPrice: number | null;
+  notes: string | null;
+  // 파생 (서버에서 계산)
+  currentPrice: number | null;
+  currentValue: number | null;
+  buyValue: number;
+  pnl: number | null;
+  pnlPct: number | null;
+  isClosed: boolean;
+};
+
+export async function getPortfolio(): Promise<PortfolioPosition[]> {
+  const rows = await db.execute(sql`
+    select p.id, p.ticker, p.buy_date, p.buy_price, p.quantity,
+           p.sell_date, p.sell_price, p.notes,
+           s.name, s.market,
+           (select close from prices pr where pr.ticker = p.ticker order by date desc limit 1) as latest_price
+    from portfolio p
+    join stocks s on s.ticker = p.ticker
+    order by p.sell_date is null desc, p.buy_date desc
+  `);
+  return rows.map((r) => {
+    const buyPrice = Number(r.buy_price);
+    const qty = Number(r.quantity);
+    const sellPrice = r.sell_price !== null ? Number(r.sell_price) : null;
+    const latestPrice = r.latest_price !== null ? Number(r.latest_price) : null;
+    const isClosed = r.sell_date !== null;
+    const currentPrice = isClosed ? sellPrice : latestPrice;
+    const buyValue = buyPrice * qty;
+    const currentValue = currentPrice !== null ? currentPrice * qty : null;
+    const pnl = currentValue !== null ? currentValue - buyValue : null;
+    const pnlPct = pnl !== null ? pnl / buyValue : null;
+    return {
+      id: Number(r.id),
+      ticker: String(r.ticker),
+      name: String(r.name),
+      market: String(r.market) as "KOSPI" | "KOSDAQ",
+      buyDate: String(r.buy_date),
+      buyPrice,
+      quantity: qty,
+      sellDate: r.sell_date !== null ? String(r.sell_date) : null,
+      sellPrice,
+      notes: r.notes !== null ? String(r.notes) : null,
+      currentPrice,
+      currentValue,
+      buyValue,
+      pnl,
+      pnlPct,
+      isClosed,
+    };
+  });
+}
 
 export type AnnualSummary = {
   fiscalYear: number;
@@ -424,19 +494,7 @@ export type BacktestTrade = {
   cost: number;
 };
 
-export async function getLatestBacktest(): Promise<BacktestRun | null> {
-  const rows = await db.execute(sql`
-    select id, start_date, end_date, initial_capital, rebalance_frequency,
-           max_positions, min_score, min_mos, tx_cost,
-           final_value, total_return, kospi_return, outperformance,
-           rebalance_count, total_trades,
-           portfolio_history, trades, created_at
-    from backtest_runs
-    order by created_at desc
-    limit 1
-  `);
-  if (rows.length === 0) return null;
-  const r = rows[0];
+function rowToBacktestRun(r: Record<string, unknown>): BacktestRun {
   return {
     id: Number(r.id),
     startDate: String(r.start_date),
@@ -457,6 +515,52 @@ export async function getLatestBacktest(): Promise<BacktestRun | null> {
     trades: (r.trades ?? []) as BacktestTrade[],
     createdAt: String(r.created_at),
   };
+}
+
+export async function getLatestBacktest(): Promise<BacktestRun | null> {
+  const rows = await db.execute(sql`
+    select * from backtest_runs order by created_at desc limit 1
+  `);
+  if (rows.length === 0) return null;
+  return rowToBacktestRun(rows[0]);
+}
+
+export async function getBacktestById(id: number): Promise<BacktestRun | null> {
+  const rows = await db.execute(sql`
+    select * from backtest_runs where id = ${id} limit 1
+  `);
+  if (rows.length === 0) return null;
+  return rowToBacktestRun(rows[0]);
+}
+
+export async function getBacktestHistory(limit = 20) {
+  const rows = await db.execute(sql`
+    select id, start_date, end_date, total_return, kospi_return, outperformance,
+           max_positions, rebalance_frequency, created_at
+    from backtest_runs
+    order by created_at desc
+    limit ${limit}
+  `);
+  return rows.map((r) => ({
+    id: Number(r.id),
+    startDate: String(r.start_date),
+    endDate: String(r.end_date),
+    totalReturn: r.total_return !== null ? Number(r.total_return) : null,
+    kospiReturn: r.kospi_return !== null ? Number(r.kospi_return) : null,
+    outperformance: r.outperformance !== null ? Number(r.outperformance) : null,
+    maxPositions: Number(r.max_positions),
+    rebalanceFrequency: String(r.rebalance_frequency),
+    createdAt: String(r.created_at),
+  }));
+}
+
+export async function getStockNames(tickers: string[]): Promise<Record<string, string>> {
+  if (tickers.length === 0) return {};
+  const rows = await db
+    .select({ ticker: stocks.ticker, name: stocks.name })
+    .from(stocks)
+    .where(inArray(stocks.ticker, tickers));
+  return Object.fromEntries(rows.map((r) => [r.ticker, r.name]));
 }
 
 export async function getKospiSeries(start: string, end: string) {
