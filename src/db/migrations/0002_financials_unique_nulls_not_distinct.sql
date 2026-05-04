@@ -1,0 +1,2 @@
+DROP INDEX "financials_period_unique";--> statement-breakpoint
+ALTER TABLE "financials" ADD CONSTRAINT "financials_period_unique" UNIQUE NULLS NOT DISTINCT("ticker","period_type","fiscal_year","fiscal_quarter");

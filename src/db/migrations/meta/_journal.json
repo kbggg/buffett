@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1777813534537,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777837601732,
+      "tag": "0001_add_market_data_and_current",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777837804299,
+      "tag": "0002_financials_unique_nulls_not_distinct",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777854473166,
+      "tag": "0003_add_equity_attributable_to_owners",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777856342087,
+      "tag": "0004_add_events_table",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+name: Daily Data Sync
+
+# 매일 새벽 5시 KST = 20:00 UTC (전일). CLAUDE.md "매일 새벽 5시 KST" 명시.
+# - schedule (cron):  최근 1년치만 갱신 (빠른 incremental)
+# - workflow_dispatch: 수동 트리거. backfill 시 target_year 지정 가능.
+on:
+  schedule:
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Which sync job to run"
+        type: choice
+        options:
+          - all
+          - stocks
+          - corp_codes
+          - prices
+          - financials
+          - financials_backfill  # target_year 1년치만
+          - scores  # 분석 엔진 (Buffett Score + 내재가치 + 타이밍)
+          - events  # DART 공시 + 임원지분 + 거래량 급변 (매수후보+가치통과 종목만)
+        default: all
+      target_year:
+        description: "For financials_backfill: fiscal year to backfill (e.g. 2025)"
+        required: false
+      include_preferred:
+        description: "Include preferred shares in price sync"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-sync
+  cancel-in-progress: false  # 진행 중 중단 금지 (DB 일관성)
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300  # 5시간 상한 (financials backfill 여유)
+    defaults:
+      run:
+        working-directory: scripts
+    env:
+      DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+      OPENDART_API_KEY: ${{ secrets.OPENDART_API_KEY }}
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
+      - name: Install deps
+        run: uv sync --frozen
+
+      - name: Sync stocks (KRX listing)
+        if: ${{ github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'stocks' }}
+        run: uv run python -m sync.stocks --all
+
+      - name: Sync corp_codes (OpenDART mapping)
+        if: ${{ github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'corp_codes' }}
+        run: uv run python -m sync.corp_codes
+
+      - name: Sync prices (FDR)
+        # 일일 cron은 최근 1년치만. 수동은 5년치 풀백필.
+        if: ${{ github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'prices' }}
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            uv run python -m sync.prices --all --include-preferred --years 1
+          else
+            FLAG=""
+            if [ "${{ inputs.include_preferred }}" = "true" ]; then FLAG="--include-preferred"; fi
+            uv run python -m sync.prices --all $FLAG
+          fi
+
+      - name: Sync financials (incremental, current + previous year, KOSPI only)
+        # cron: 현재 회계연도(부분 제출분 포함) + 직전 완성 연도 둘 다 갱신.
+        # KOSPI만 — KOSDAQ은 거래량 부족으로 분석 universe에서 제외 (미래에 필요해지면 별도).
+        # 호출 수: ~841종목 × 2년 × 4보고서 = ~6,728 / 40k 한도 내.
+        if: ${{ github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'financials' }}
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            uv run python -m sync.financials --all --end-year $(date +%Y) --years 2 --markets KOSPI
+          else
+            uv run python -m sync.financials --all --markets KOSPI
+          fi
+
+      - name: Financials backfill (single fiscal year, KOSPI only)
+        # 수동 전용: 5년치를 일별로 1년씩 채우는 모드.
+        # 예: target_year=2025 → Y2025 1Q+2Q+3Q+연간 4보고서 × KOSPI 종목.
+        # ~841 × 4 = ~3,364 calls/year. 3년치 동시 가능 (~10,092 < 40k).
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.job == 'financials_backfill' }}
+        run: |
+          if [ -z "${{ inputs.target_year }}" ]; then
+            echo "target_year is required for financials_backfill"
+            exit 1
+          fi
+          uv run python -m sync.financials --all --end-year ${{ inputs.target_year }} --years 1 --markets KOSPI
+
+      - name: Compute scores (Buffett Score + intrinsic + timing)
+        # 모든 incremental sync 후 점수 재산출. KOSPI만.
+        if: ${{ github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'scores' }}
+        run: uv run python -m analysis.runner
+
+      - name: Sync events (DART 공시 + 임원지분 + 거래량 급변)
+        # 매수후보+가치통과 종목만 (~10~80개). 점수 산출 후에 실행 (대상 결정용).
+        if: ${{ github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'events' }}
+        run: uv run python -m sync.events

@@ -1,0 +1,1 @@
+ALTER TABLE "financials" ADD COLUMN "equity_attributable_to_owners" numeric(20, 0);
