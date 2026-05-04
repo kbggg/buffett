@@ -68,19 +68,20 @@ def _load_annuals(conn, ticker: str, as_of: date) -> list[Annual]:
 
 def _load_market(
     conn, ticker: str, as_of: date
-) -> tuple[int | None, int | None, float | None]:
-    """(market_cap, shares_outstanding, latest close at as_of)."""
+) -> tuple[int | None, int | None, float | None, str]:
+    """(market_cap, shares_outstanding, latest close at as_of, cycle_type)."""
     mc = conn.execute(text(
-        "select market_cap, shares_outstanding from stocks where ticker = :t"
+        "select market_cap, shares_outstanding, cycle_type from stocks where ticker = :t"
     ), {"t": ticker}).first()
     market_cap = int(mc.market_cap) if mc and mc.market_cap is not None else None
     shares = int(mc.shares_outstanding) if mc and mc.shares_outstanding is not None else None
+    cycle_type = str(mc.cycle_type) if mc and mc.cycle_type else "unknown"
     price_row = conn.execute(text(
         "select close from prices where ticker = :t and date <= :d "
         "order by date desc limit 1"
     ), {"t": ticker, "d": as_of}).first()
     price = float(price_row.close) if price_row else None
-    return market_cap, shares, price
+    return market_cap, shares, price, cycle_type
 
 
 def _load_event_counts(conn, ticker: str, as_of: date, days: int = 90) -> RecentEventCounts:
@@ -158,10 +159,11 @@ def run_one(
     annuals = _load_annuals(conn, ticker, as_of)
     if not annuals:
         return None
-    market_cap, shares, price = _load_market(conn, ticker, as_of)
+    market_cap, shares, price, cycle_type = _load_market(conn, ticker, as_of)
     events_counts = _load_event_counts(conn, ticker, as_of)
     sr = compute_score(ScoreInput(
-        ticker=ticker, annuals=annuals, market_cap=market_cap, events=events_counts,
+        ticker=ticker, annuals=annuals, market_cap=market_cap,
+        events=events_counts, cycle_type=cycle_type,
     ))
     ir = compute_intrinsic(annuals, shares, price)
     prices_df = _load_prices(conn, ticker, as_of)

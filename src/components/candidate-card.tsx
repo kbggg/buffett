@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { Candidate, EventItem } from "@/lib/queries";
+import { recommend } from "@/lib/recommendation";
+import { RecommendationBadge } from "@/components/recommendation-box";
 
 const EVENT_BADGE: Record<EventItem["category"], string> = {
   positive: "text-emerald-600 dark:text-emerald-400",
@@ -104,6 +106,15 @@ export function CandidateCard({
   const mosPct = c.marginOfSafety !== null ? Math.round(c.marginOfSafety * 100) : null;
   const summary = buildSummary(c);
   const timing = c.breakdown?.timing;
+  const recentNeg = c.recentEvents.filter((e) => e.category === "negative").length;
+  const rec = recommend({
+    buffettScore: c.buffettScore,
+    marginOfSafety: c.marginOfSafety,
+    timingSignal: c.timingSignal,
+    intrinsicAvg: c.intrinsicAvg,
+    recentNegativeEvents: recentNeg,
+    isHolding: false, // Today 카드는 미보유 가정
+  });
 
   return (
     <article className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
@@ -146,7 +157,10 @@ export function CandidateCard({
         </div>
       </div>
 
-      <p className="text-sm text-zinc-700 dark:text-zinc-300">{summary}</p>
+      <div>
+        <RecommendationBadge rec={rec} />
+        <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{summary}</p>
+      </div>
 
       <div className="grid grid-cols-2 gap-3 rounded-md bg-zinc-50 px-3 py-2 text-xs dark:bg-zinc-800/50">
         <div>

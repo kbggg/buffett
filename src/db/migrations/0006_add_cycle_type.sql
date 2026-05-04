@@ -1,0 +1,2 @@
+CREATE TYPE "public"."cycle_type" AS ENUM('cyclical', 'defensive', 'growth', 'financial', 'unknown');--> statement-breakpoint
+ALTER TABLE "stocks" ADD COLUMN "cycle_type" "cycle_type" DEFAULT 'unknown' NOT NULL;

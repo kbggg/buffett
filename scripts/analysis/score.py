@@ -22,17 +22,35 @@ from datetime import date
 from statistics import mean, pstdev
 from typing import Optional
 
-# === 임계값 (한국 시장 캘리브레이션) ===
+# === 임계값 (한국 시장 + 사이클 인식) ===
 
+# Cycle type:
+#  - 'defensive' : 기본 (Buffett 정통)
+#  - 'cyclical'  : 반도체/화학/철강 등 — 사이클 바닥에서 ROE/이익률 낮은 게 정상
+#  - 'growth'    : IT/바이오 — 높은 PBR/PER 정상, 매출 CAGR 평가 강화
+#  - 'financial' : 은행/보험 — 부채비율 평가 다름
+
+# Default thresholds (defensive)
 ROE_THRESHOLDS = [(0.12, 15), (0.08, 10), (0.04, 5), (-1, 0)]
 OP_MARGIN_THRESHOLDS = [(0.10, 10), (0.07, 7), (0.04, 4), (-1, 0)]
-ROE_VOL_THRESHOLDS = [(0.20, 5), (0.50, 3), (1e9, 0)]  # 낮을수록 점수 ↑
 DEBT_RATIO_THRESHOLDS = [(0.50, 15), (1.00, 10), (2.00, 5), (1e9, 0)]
-CURRENT_RATIO_OK = 1.5  # 이상이면 5점
+CURRENT_RATIO_OK = 1.5
 OCF_NI_THRESHOLDS = [(1.20, 10), (1.00, 8), (0.80, 5), (-1e9, 0)]
 REV_CAGR_THRESHOLDS = [(0.10, 7), (0.05, 5), (0.00, 2), (-1e9, 0)]
-NI_CAGR_THRESHOLDS = [(0.10, 8), (0.05, 5), (0.00, 2), (-1e9, -5)]  # 음수면 감점
+NI_CAGR_THRESHOLDS = [(0.10, 8), (0.05, 5), (0.00, 2), (-1e9, -5)]
 OE_YIELD_THRESHOLDS = [(0.08, 10), (0.04, 6), (0.02, 3), (-1e9, 0)]
+
+# Cyclical 조정 — 사이클 바닥에서 ROE/이익률 낮음, NI CAGR 음수 정상
+CYCLICAL_ROE_THRESHOLDS = [(0.08, 15), (0.05, 10), (0.02, 5), (-1, 0)]
+CYCLICAL_OP_MARGIN_THRESHOLDS = [(0.07, 10), (0.04, 7), (0.02, 4), (-1, 0)]
+CYCLICAL_NI_CAGR_THRESHOLDS = [(0.05, 8), (0.00, 5), (-0.10, 3), (-1e9, 0)]  # 음수 페널티 완화
+CYCLICAL_REV_CAGR_THRESHOLDS = [(0.05, 7), (0.00, 5), (-0.05, 3), (-1e9, 0)]
+# 매수 신호 — 현재 ROE가 5년 평균 아래면 사이클 바닥 (가산점)
+
+# Growth 조정 — 매출 성장 가중, 이익률은 약간 낮아도 OK
+GROWTH_REV_CAGR_THRESHOLDS = [(0.20, 7), (0.10, 5), (0.05, 3), (-1e9, 0)]
+GROWTH_NI_CAGR_THRESHOLDS = [(0.20, 8), (0.10, 5), (0.00, 2), (-1e9, -3)]
+GROWTH_OP_MARGIN_THRESHOLDS = [(0.08, 10), (0.05, 7), (0.02, 4), (-1, 0)]
 
 
 @dataclass
@@ -71,6 +89,7 @@ class ScoreInput:
     annuals: list[Annual]  # 최근 → 과거 순(내림차순) 또는 무관, 정렬은 내부에서
     market_cap: Optional[int]
     events: RecentEventCounts = field(default_factory=RecentEventCounts)
+    cycle_type: str = "unknown"  # 'cyclical' | 'defensive' | 'growth' | 'financial' | 'unknown'
 
 
 @dataclass
@@ -128,7 +147,7 @@ def _cagr(latest: float, earliest: float, years: int) -> Optional[float]:
 
 # === 카테고리별 산출 ===
 
-def _profitability(annuals: list[Annual]) -> ComponentScore:
+def _profitability(annuals: list[Annual], cycle_type: str = "unknown") -> ComponentScore:
     roes: list[float] = []
     op_margins: list[float] = []
     for a in annuals:
@@ -139,22 +158,52 @@ def _profitability(annuals: list[Annual]) -> ComponentScore:
         if opm is not None:
             op_margins.append(opm)
 
-    details: dict = {}
+    details: dict = {"cycle_type": cycle_type}
     score = 0.0
+
+    # cycle별 임계값 선택
+    if cycle_type == "cyclical":
+        roe_th = CYCLICAL_ROE_THRESHOLDS
+        opm_th = CYCLICAL_OP_MARGIN_THRESHOLDS
+    elif cycle_type == "growth":
+        roe_th = ROE_THRESHOLDS  # growth도 ROE 기준은 동일
+        opm_th = GROWTH_OP_MARGIN_THRESHOLDS
+    else:
+        roe_th = ROE_THRESHOLDS
+        opm_th = OP_MARGIN_THRESHOLDS
 
     if roes:
         roe_avg = mean(roes)
         details["roe_avg"] = round(roe_avg, 4)
-        score += _bucket(roe_avg, ROE_THRESHOLDS)
+        score += _bucket(roe_avg, roe_th)
         if len(roes) >= 2:
             roe_vol = pstdev(roes) / abs(roe_avg) if roe_avg != 0 else float("inf")
             details["roe_volatility"] = round(roe_vol, 4)
-            score += _bucket(-roe_vol, [(-0.20, 5), (-0.50, 3), (-1e9, 0)])
+            # cyclical은 변동성 페널티 완화
+            vol_th = (
+                [(-0.40, 5), (-0.80, 3), (-1e9, 0)]
+                if cycle_type == "cyclical"
+                else [(-0.20, 5), (-0.50, 3), (-1e9, 0)]
+            )
+            score += _bucket(-roe_vol, vol_th)
+        # 사이클 인식 가산점: 현재 ROE < 5년 평균 → 바닥일 가능성 +2pt
+        if cycle_type == "cyclical" and len(roes) >= 3:
+            current = roes[0]  # 최신
+            historical_avg = mean(roes[1:])  # 과거 평균
+            if historical_avg > 0 and current < historical_avg * 0.7:
+                score += 2
+                details["cycle_bottom_bonus"] = 2
+            elif historical_avg > 0 and current > historical_avg * 1.5:
+                score -= 2  # 사이클 정점 페널티
+                details["cycle_peak_penalty"] = -2
+
     if op_margins:
         opm_avg = mean(op_margins)
         details["op_margin_avg"] = round(opm_avg, 4)
-        score += _bucket(opm_avg, OP_MARGIN_THRESHOLDS)
+        score += _bucket(opm_avg, opm_th)
 
+    # 음수 방지
+    score = max(0.0, score)
     return ComponentScore("profitability", score, 30, details)
 
 
@@ -217,9 +266,9 @@ def _cash_gen(annuals: list[Annual]) -> ComponentScore:
     return ComponentScore("cash_gen", score, 15, details)
 
 
-def _growth(annuals: list[Annual]) -> ComponentScore:
+def _growth(annuals: list[Annual], cycle_type: str = "unknown") -> ComponentScore:
     """가장 오래된 vs 최신 비교. 1년치만 있으면 0점."""
-    details: dict = {}
+    details: dict = {"cycle_type": cycle_type}
     score = 0.0
     sorted_a = sorted(annuals, key=lambda a: a.fiscal_year)
     if len(sorted_a) < 2:
@@ -228,13 +277,21 @@ def _growth(annuals: list[Annual]) -> ComponentScore:
     earliest, latest = sorted_a[0], sorted_a[-1]
     years = latest.fiscal_year - earliest.fiscal_year
 
+    # cycle별 임계값
+    if cycle_type == "cyclical":
+        rev_th, ni_th = CYCLICAL_REV_CAGR_THRESHOLDS, CYCLICAL_NI_CAGR_THRESHOLDS
+    elif cycle_type == "growth":
+        rev_th, ni_th = GROWTH_REV_CAGR_THRESHOLDS, GROWTH_NI_CAGR_THRESHOLDS
+    else:
+        rev_th, ni_th = REV_CAGR_THRESHOLDS, NI_CAGR_THRESHOLDS
+
     rev_cagr = (
         _cagr(latest.revenue, earliest.revenue, years)
         if (latest.revenue and earliest.revenue) else None
     )
     if rev_cagr is not None:
         details["revenue_cagr"] = round(rev_cagr, 4)
-        score += _bucket(rev_cagr, REV_CAGR_THRESHOLDS)
+        score += _bucket(rev_cagr, rev_th)
 
     ni_cagr = (
         _cagr(latest.net_income, earliest.net_income, years)
@@ -242,8 +299,9 @@ def _growth(annuals: list[Annual]) -> ComponentScore:
     )
     if ni_cagr is not None:
         details["net_income_cagr"] = round(ni_cagr, 4)
-        score += _bucket(ni_cagr, NI_CAGR_THRESHOLDS)
+        score += _bucket(ni_cagr, ni_th)
 
+    score = max(0.0, score)
     return ComponentScore("growth", score, 15, details)
 
 
@@ -303,10 +361,10 @@ def compute_score(inp: ScoreInput) -> ScoreResult:
     annuals = sorted(inp.annuals, key=lambda a: a.fiscal_year, reverse=True)
 
     components = [
-        _profitability(annuals),
+        _profitability(annuals, inp.cycle_type),
         _health(annuals),
         _cash_gen(annuals),
-        _growth(annuals),
+        _growth(annuals, inp.cycle_type),
         _stability(annuals),
         _oe_yield(annuals, inp.market_cap),
         _event_impact(inp.events),

@@ -49,6 +49,19 @@ export const eventCategoryEnum = pgEnum("event_category", [
   "info",
 ]);
 
+// 사이클 인식 — Buffett 임계값을 업종 특성에 맞게 조정.
+// cyclical: 반도체/조선/화학/철강/정유/자동차/항공/건설 — PBR/PER/ROE 변동 큼
+// defensive: 통신/유틸/식품/생활소비재 — 안정 평가
+// growth: 바이오/IT — 높은 PBR 정상
+// financial: 은행/보험 — 부채비율 평가 다름 (이미 매핑은 처리)
+export const cycleTypeEnum = pgEnum("cycle_type", [
+  "cyclical",
+  "defensive",
+  "growth",
+  "financial",
+  "unknown",
+]);
+
 export const stocks = pgTable("stocks", {
   ticker: varchar("ticker", { length: 10 }).primaryKey(),
   name: text("name").notNull(),
@@ -61,6 +74,8 @@ export const stocks = pgTable("stocks", {
   // 현재 시점 시장 정보 (stocks 동기화 시 FDR로 매일 갱신)
   sharesOutstanding: bigint("shares_outstanding", { mode: "bigint" }),
   marketCap: numeric("market_cap", { precision: 20, scale: 0 }),
+  // 사이클 인식 — 사이클 업종은 PBR/ROE 변동 폭 크므로 평가 기준 조정.
+  cycleType: cycleTypeEnum("cycle_type").notNull().default("unknown"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

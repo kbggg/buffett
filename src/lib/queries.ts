@@ -239,6 +239,12 @@ export type PortfolioPosition = {
   pnl: number | null;
   pnlPct: number | null;
   isClosed: boolean;
+  // 권장 액션 입력 (보유 종목만)
+  buffettScore: number | null;
+  marginOfSafety: number | null;
+  timingSignal: "BUY" | "WATCH" | "NEUTRAL" | null;
+  intrinsicAvg: number | null;
+  recentNegativeEvents: number;
 };
 
 export async function getPortfolio(): Promise<PortfolioPosition[]> {
@@ -246,9 +252,15 @@ export async function getPortfolio(): Promise<PortfolioPosition[]> {
     select p.id, p.ticker, p.buy_date, p.buy_price, p.quantity,
            p.sell_date, p.sell_price, p.notes,
            s.name, s.market,
-           (select close from prices pr where pr.ticker = p.ticker order by date desc limit 1) as latest_price
+           (select close from prices pr where pr.ticker = p.ticker order by date desc limit 1) as latest_price,
+           sc.buffett_score, sc.margin_of_safety, sc.timing_signal, sc.intrinsic_avg,
+           (select count(*) from events ev where ev.ticker = p.ticker and ev.category = 'negative'
+            and ev.event_date >= current_date - interval '90 days') as neg_events
     from portfolio p
     join stocks s on s.ticker = p.ticker
+    left join lateral (
+      select * from scores where ticker = p.ticker order by calc_date desc limit 1
+    ) sc on true
     order by p.sell_date is null desc, p.buy_date desc
   `);
   return rows.map((r) => {
@@ -279,6 +291,11 @@ export async function getPortfolio(): Promise<PortfolioPosition[]> {
       pnl,
       pnlPct,
       isClosed,
+      buffettScore: r.buffett_score !== null ? Number(r.buffett_score) : null,
+      marginOfSafety: r.margin_of_safety !== null ? Number(r.margin_of_safety) : null,
+      timingSignal: (r.timing_signal ?? null) as PortfolioPosition["timingSignal"],
+      intrinsicAvg: r.intrinsic_avg !== null ? Number(r.intrinsic_avg) : null,
+      recentNegativeEvents: r.neg_events !== null ? Number(r.neg_events) : 0,
     };
   });
 }

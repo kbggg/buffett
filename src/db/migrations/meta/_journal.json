@@ -43,6 +43,13 @@
       "when": 1777860019431,
       "tag": "0005_add_backtest_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777868852150,
+      "tag": "0006_add_cycle_type",
+      "breakpoints": true
     }
   ]
 }

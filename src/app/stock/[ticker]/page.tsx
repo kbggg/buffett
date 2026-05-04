@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getPriceSeries, getStockDetail } from "@/lib/queries";
+import { getPortfolio, getPriceSeries, getStockDetail } from "@/lib/queries";
+import { recommend } from "@/lib/recommendation";
 import { Term } from "@/components/term";
 import { PriceChart } from "@/components/price-chart";
 import { FinancialsChart } from "@/components/financials-chart";
+import { RecommendationBox } from "@/components/recommendation-box";
 
 const TRILLION = 1_000_000_000_000;
 const BILLION = 100_000_000;
@@ -49,6 +51,22 @@ export default async function Page({
   if (!detail) notFound();
 
   const initialPrices = await getPriceSeries(ticker, 365);
+  const portfolio = await getPortfolio();
+  const holding = portfolio.find((p) => p.ticker === ticker && !p.isClosed);
+  const recentNeg = detail.events.filter(
+    (e) =>
+      e.category === "negative" &&
+      new Date(e.date) >= new Date(Date.now() - 90 * 86400_000),
+  ).length;
+  const rec = recommend({
+    buffettScore: detail.buffettScore,
+    marginOfSafety: detail.marginOfSafety,
+    timingSignal: detail.timingSignal,
+    intrinsicAvg: detail.intrinsicAvg,
+    recentNegativeEvents: recentNeg,
+    isHolding: !!holding,
+    buyPrice: holding?.buyPrice,
+  });
 
   const components = detail.breakdown?.components ?? {};
   const compEntries: { key: string; label: string; data?: { score: number; max: number; details: Record<string, unknown> } }[] = [
@@ -125,6 +143,9 @@ export default async function Page({
             <p className="mt-4 text-sm text-zinc-700 dark:text-zinc-300">{summary}</p>
           )}
         </header>
+
+        {/* 권장 액션 — 매수/매도 가이드 */}
+        <RecommendationBox rec={rec} currentPrice={detail.latestPrice} />
 
         {/* Price chart */}
         <PriceChart ticker={detail.ticker} initialData={initialPrices} />

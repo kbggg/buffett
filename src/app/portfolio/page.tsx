@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getPortfolio, type PortfolioPosition } from "@/lib/queries";
+import { recommend } from "@/lib/recommendation";
 import { AddPositionForm, SellButton } from "@/components/portfolio-actions";
+import { RecommendationBadge } from "@/components/recommendation-box";
 
 const MILLION = 1_000_000;
 const BILLION = 100_000_000;
@@ -113,11 +115,24 @@ function PositionTable({
             <th className="py-2 text-right">현재가</th>
             <th className="py-2 text-right">평가</th>
             <th className="py-2 text-right">손익</th>
+            {showActions && <th className="py-2">권장</th>}
             {showActions && <th className="py-2"></th>}
           </tr>
         </thead>
         <tbody>
-          {positions.map((p) => (
+          {positions.map((p) => {
+            const rec = !p.isClosed
+              ? recommend({
+                  buffettScore: p.buffettScore,
+                  marginOfSafety: p.marginOfSafety,
+                  timingSignal: p.timingSignal,
+                  intrinsicAvg: p.intrinsicAvg,
+                  recentNegativeEvents: p.recentNegativeEvents,
+                  isHolding: true,
+                  buyPrice: p.buyPrice,
+                })
+              : null;
+            return (
             <tr key={p.id} className="border-b border-zinc-100 dark:border-zinc-900">
               <td className="py-2 text-xs">
                 <Link href={`/stock/${p.ticker}`} className="hover:underline">
@@ -153,11 +168,17 @@ function PositionTable({
               </td>
               {showActions && (
                 <td className="py-2">
+                  {rec && <RecommendationBadge rec={rec} />}
+                </td>
+              )}
+              {showActions && (
+                <td className="py-2">
                   <SellButton id={p.id} ticker={p.ticker} />
                 </td>
               )}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
