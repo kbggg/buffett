@@ -192,6 +192,282 @@ export async function getCandidates(opts: {
   });
 }
 
+export type StockDetail = {
+  ticker: string;
+  name: string;
+  market: "KOSPI" | "KOSDAQ";
+  marketCap: number | null;
+  sharesOutstanding: number | null;
+  buffettScore: number | null;
+  marginOfSafety: number | null;
+  timingSignal: "BUY" | "WATCH" | "NEUTRAL" | null;
+  intrinsicDcf: number | null;
+  intrinsicOwnerEarnings: number | null;
+  intrinsicGraham: number | null;
+  intrinsicAvg: number | null;
+  breakdown: BreakdownShape | null;
+  pbr: number | null;
+  per: number | null;
+  latestPrice: number | null;
+  annuals: AnnualSummary[];
+  events: EventItem[];
+};
+
+export type AnnualSummary = {
+  fiscalYear: number;
+  reportDate: string;
+  revenue: number | null;
+  operatingIncome: number | null;
+  netIncome: number | null;
+  totalEquity: number | null;
+  equityAttributableToOwners: number | null;
+  totalAssets: number | null;
+  totalLiabilities: number | null;
+  currentAssets: number | null;
+  currentLiabilities: number | null;
+  operatingCashFlow: number | null;
+  capex: number | null;
+  eps: number | null;
+};
+
+export async function getStockDetail(ticker: string): Promise<StockDetail | null> {
+  const stk = await db
+    .select({
+      ticker: stocks.ticker,
+      name: stocks.name,
+      market: stocks.market,
+      marketCap: stocks.marketCap,
+      sharesOutstanding: stocks.sharesOutstanding,
+    })
+    .from(stocks)
+    .where(eq(stocks.ticker, ticker))
+    .limit(1);
+  if (stk.length === 0) return null;
+  const s = stk[0];
+
+  const sc = await db
+    .select({
+      buffettScore: scores.buffettScore,
+      marginOfSafety: scores.marginOfSafety,
+      timingSignal: scores.timingSignal,
+      intrinsicDcf: scores.intrinsicDcf,
+      intrinsicOwnerEarnings: scores.intrinsicOwnerEarnings,
+      intrinsicGraham: scores.intrinsicGraham,
+      intrinsicAvg: scores.intrinsicAvg,
+      breakdown: scores.breakdown,
+    })
+    .from(scores)
+    .where(eq(scores.ticker, ticker))
+    .orderBy(desc(scores.calcDate))
+    .limit(1);
+
+  const annualRows = await db
+    .select({
+      fiscalYear: financials.fiscalYear,
+      reportDate: financials.reportDate,
+      revenue: financials.revenue,
+      operatingIncome: financials.operatingIncome,
+      netIncome: financials.netIncome,
+      totalEquity: financials.totalEquity,
+      equityAttributableToOwners: financials.equityAttributableToOwners,
+      totalAssets: financials.totalAssets,
+      totalLiabilities: financials.totalLiabilities,
+      currentAssets: financials.currentAssets,
+      currentLiabilities: financials.currentLiabilities,
+      operatingCashFlow: financials.operatingCashFlow,
+      capex: financials.capex,
+      eps: financials.eps,
+    })
+    .from(financials)
+    .where(and(eq(financials.ticker, ticker), eq(financials.periodType, "A")))
+    .orderBy(desc(financials.fiscalYear));
+
+  const eventRows = await db
+    .select({
+      eventDate: events.eventDate,
+      eventType: events.eventType,
+      category: events.category,
+      title: events.title,
+    })
+    .from(events)
+    .where(eq(events.ticker, ticker))
+    .orderBy(desc(events.eventDate))
+    .limit(50);
+
+  const latestPriceRow = await db.execute(sql`
+    select close from prices where ticker = ${ticker} order by date desc limit 1
+  `);
+  const latestPrice =
+    latestPriceRow.length > 0 && latestPriceRow[0].close !== null
+      ? Number(latestPriceRow[0].close)
+      : null;
+
+  const score = sc[0];
+  const mc = s.marketCap !== null ? Number(s.marketCap) : null;
+  const latest = annualRows[0];
+  const equity = latest?.equityAttributableToOwners
+    ? Number(latest.equityAttributableToOwners)
+    : latest?.totalEquity
+      ? Number(latest.totalEquity)
+      : null;
+  const ni = latest?.netIncome ? Number(latest.netIncome) : null;
+  const pbr = mc !== null && equity !== null && equity > 0 ? mc / equity : null;
+  const per = mc !== null && ni !== null && ni > 0 ? mc / ni : null;
+
+  return {
+    ticker: s.ticker,
+    name: s.name,
+    market: s.market as "KOSPI" | "KOSDAQ",
+    marketCap: mc,
+    sharesOutstanding:
+      s.sharesOutstanding !== null ? Number(s.sharesOutstanding) : null,
+    buffettScore: score?.buffettScore ? Number(score.buffettScore) : null,
+    marginOfSafety:
+      score?.marginOfSafety !== null && score?.marginOfSafety !== undefined
+        ? Number(score.marginOfSafety)
+        : null,
+    timingSignal: (score?.timingSignal ?? null) as StockDetail["timingSignal"],
+    intrinsicDcf: score?.intrinsicDcf ? Number(score.intrinsicDcf) : null,
+    intrinsicOwnerEarnings: score?.intrinsicOwnerEarnings
+      ? Number(score.intrinsicOwnerEarnings)
+      : null,
+    intrinsicGraham: score?.intrinsicGraham ? Number(score.intrinsicGraham) : null,
+    intrinsicAvg: score?.intrinsicAvg ? Number(score.intrinsicAvg) : null,
+    breakdown: (score?.breakdown ?? null) as BreakdownShape | null,
+    pbr,
+    per,
+    latestPrice,
+    annuals: annualRows.map((r) => ({
+      fiscalYear: r.fiscalYear,
+      reportDate: String(r.reportDate),
+      revenue: r.revenue !== null ? Number(r.revenue) : null,
+      operatingIncome:
+        r.operatingIncome !== null ? Number(r.operatingIncome) : null,
+      netIncome: r.netIncome !== null ? Number(r.netIncome) : null,
+      totalEquity: r.totalEquity !== null ? Number(r.totalEquity) : null,
+      equityAttributableToOwners:
+        r.equityAttributableToOwners !== null
+          ? Number(r.equityAttributableToOwners)
+          : null,
+      totalAssets: r.totalAssets !== null ? Number(r.totalAssets) : null,
+      totalLiabilities:
+        r.totalLiabilities !== null ? Number(r.totalLiabilities) : null,
+      currentAssets:
+        r.currentAssets !== null ? Number(r.currentAssets) : null,
+      currentLiabilities:
+        r.currentLiabilities !== null ? Number(r.currentLiabilities) : null,
+      operatingCashFlow:
+        r.operatingCashFlow !== null ? Number(r.operatingCashFlow) : null,
+      capex: r.capex !== null ? Number(r.capex) : null,
+      eps: r.eps !== null ? Number(r.eps) : null,
+    })),
+    events: eventRows.map((e) => ({
+      date: String(e.eventDate),
+      type: e.eventType as EventItem["type"],
+      category: e.category as EventItem["category"],
+      title: e.title,
+    })),
+  };
+}
+
+export async function getPriceSeries(
+  ticker: string,
+  days: number,
+): Promise<{ date: string; close: number }[]> {
+  const rows = await db.execute(sql`
+    select date, close from prices
+    where ticker = ${ticker}
+    order by date desc
+    limit ${days}
+  `);
+  return rows
+    .map((r) => ({ date: String(r.date), close: Number(r.close) }))
+    .reverse();
+}
+
+// === Backtest queries ===
+
+export type BacktestRun = {
+  id: number;
+  startDate: string;
+  endDate: string;
+  initialCapital: number;
+  rebalanceFrequency: string;
+  maxPositions: number;
+  minScore: number;
+  minMos: number;
+  txCost: number;
+  finalValue: number | null;
+  totalReturn: number | null;
+  kospiReturn: number | null;
+  outperformance: number | null;
+  rebalanceCount: number | null;
+  totalTrades: number | null;
+  portfolioHistory: PortfolioSnapshot[];
+  trades: BacktestTrade[];
+  createdAt: string;
+};
+
+export type PortfolioSnapshot = {
+  date: string;
+  nav: number;
+  cash: number;
+  holdings: Record<string, number>;
+};
+
+export type BacktestTrade = {
+  date: string;
+  ticker: string;
+  action: "BUY" | "SELL";
+  qty: number;
+  price: number;
+  cost: number;
+};
+
+export async function getLatestBacktest(): Promise<BacktestRun | null> {
+  const rows = await db.execute(sql`
+    select id, start_date, end_date, initial_capital, rebalance_frequency,
+           max_positions, min_score, min_mos, tx_cost,
+           final_value, total_return, kospi_return, outperformance,
+           rebalance_count, total_trades,
+           portfolio_history, trades, created_at
+    from backtest_runs
+    order by created_at desc
+    limit 1
+  `);
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    id: Number(r.id),
+    startDate: String(r.start_date),
+    endDate: String(r.end_date),
+    initialCapital: Number(r.initial_capital),
+    rebalanceFrequency: String(r.rebalance_frequency),
+    maxPositions: Number(r.max_positions),
+    minScore: Number(r.min_score),
+    minMos: Number(r.min_mos),
+    txCost: Number(r.tx_cost),
+    finalValue: r.final_value !== null ? Number(r.final_value) : null,
+    totalReturn: r.total_return !== null ? Number(r.total_return) : null,
+    kospiReturn: r.kospi_return !== null ? Number(r.kospi_return) : null,
+    outperformance: r.outperformance !== null ? Number(r.outperformance) : null,
+    rebalanceCount: r.rebalance_count !== null ? Number(r.rebalance_count) : null,
+    totalTrades: r.total_trades !== null ? Number(r.total_trades) : null,
+    portfolioHistory: (r.portfolio_history ?? []) as PortfolioSnapshot[],
+    trades: (r.trades ?? []) as BacktestTrade[],
+    createdAt: String(r.created_at),
+  };
+}
+
+export async function getKospiSeries(start: string, end: string) {
+  const rows = await db.execute(sql`
+    select date, close from prices
+    where ticker = 'KS11' and date >= ${start} and date <= ${end}
+    order by date asc
+  `);
+  return rows.map((r) => ({ date: String(r.date), close: Number(r.close) }));
+}
+
 export async function getCounts(calcDate: string) {
   const all = await db
     .select({ n: sql<number>`count(*)::int` })

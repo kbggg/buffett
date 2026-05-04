@@ -47,11 +47,19 @@ export default async function Page({
   return (
     <div className="flex-1 px-4 py-6 sm:px-8 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <header className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">오늘 살 만한 종목</h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {formatDate(calcDate)} 기준 · KOSPI · 워렌 버핏 가치투자 원칙
-          </p>
+        <header className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">오늘 살 만한 종목</h1>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              {formatDate(calcDate)} 기준 · KOSPI · 워렌 버핏 가치투자 원칙
+            </p>
+          </div>
+          <a
+            href="/whatif"
+            className="shrink-0 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            What If →
+          </a>
         </header>
 
         <nav className="mb-6 flex flex-wrap gap-2" aria-label="필터">

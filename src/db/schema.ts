@@ -214,6 +214,31 @@ export const syncLogs = pgTable("sync_logs", {
   errorMessage: text("error_message"),
 });
 
+export const backtestRuns = pgTable("backtest_runs", {
+  id: serial("id").primaryKey(),
+  // 시뮬레이션 파라미터
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  initialCapital: numeric("initial_capital", { precision: 20, scale: 0 }).notNull(),
+  rebalanceFrequency: text("rebalance_frequency").notNull(), // 'monthly' | 'quarterly'
+  maxPositions: integer("max_positions").notNull(),
+  minScore: numeric("min_score", { precision: 5, scale: 2 }).notNull(),
+  minMos: numeric("min_mos", { precision: 5, scale: 2 }).notNull(),
+  txCost: numeric("tx_cost", { precision: 5, scale: 4 }).notNull(), // 0.004 = 0.4%
+  // 결과 요약
+  finalValue: numeric("final_value", { precision: 20, scale: 0 }),
+  totalReturn: numeric("total_return", { precision: 8, scale: 4 }), // 누적 수익률 (fraction)
+  kospiReturn: numeric("kospi_return", { precision: 8, scale: 4 }),
+  outperformance: numeric("outperformance", { precision: 8, scale: 4 }),
+  rebalanceCount: integer("rebalance_count"),
+  totalTrades: integer("total_trades"),
+  // 시계열 + 거래 history (jsonb)
+  portfolioHistory: jsonb("portfolio_history"), // [{date, value, holdings[], cash}]
+  trades: jsonb("trades"), // [{date, ticker, action, qty, price, cost}]
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const events = pgTable(
   "events",
   {

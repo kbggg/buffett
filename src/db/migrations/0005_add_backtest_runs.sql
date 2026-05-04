@@ -1,0 +1,21 @@
+CREATE TABLE "backtest_runs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"start_date" date NOT NULL,
+	"end_date" date NOT NULL,
+	"initial_capital" numeric(20, 0) NOT NULL,
+	"rebalance_frequency" text NOT NULL,
+	"max_positions" integer NOT NULL,
+	"min_score" numeric(5, 2) NOT NULL,
+	"min_mos" numeric(5, 2) NOT NULL,
+	"tx_cost" numeric(5, 4) NOT NULL,
+	"final_value" numeric(20, 0),
+	"total_return" numeric(8, 4),
+	"kospi_return" numeric(8, 4),
+	"outperformance" numeric(8, 4),
+	"rebalance_count" integer,
+	"total_trades" integer,
+	"portfolio_history" jsonb,
+	"trades" jsonb,
+	"notes" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
