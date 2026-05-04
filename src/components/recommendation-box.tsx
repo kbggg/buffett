@@ -84,7 +84,7 @@ export function RecommendationBox({
 
       <p className="mt-4 border-t border-current/10 pt-3 text-[10px] opacity-60">
         ⚠️ 시스템 권장은 객관적 지표 기반 참고용. 실제 매수/매도는 본인 판단 + 추가 분석 필요.
-        CLAUDE.md 원칙: 6개월 모의투자 통과 전 실전 자본 X.
+        한 번에 큰 자본 투입 X — 점진적 증액 권장.
       </p>
     </section>
   );
