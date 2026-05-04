@@ -1,7 +1,7 @@
-import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { events, financials, scores, stocks } from "@/db/schema";
+import { events, financials, prices, scores, stocks } from "@/db/schema";
 
 export type Candidate = {
   ticker: string;
@@ -102,6 +102,7 @@ export async function getCandidates(opts: {
   // PBR/PER 계산용: 각 종목의 최신 연간.
   // PBR 표준은 "지배기업주주귀속 자본" 사용 (KIS/네이버 등 시장 데이터와 일치).
   // 미수집 종목은 total_equity 폴백.
+  // PER은 LTM(최근 4분기 합) 우선 — 연간만 사용보다 fresh.
   const tickers = rows.map((r) => r.ticker);
   const finRows = tickers.length
     ? await db
@@ -141,6 +142,33 @@ export async function getCandidates(opts: {
     }
   }
 
+  // LTM (Trailing 12 Months) 순이익 — 최근 4분기 합. 더 fresh한 PER용.
+  // 분기 데이터(period_type='Q')의 최신 4개 합산. 4개 미만이면 NULL.
+  // LTM 분기 합산 — drizzle inArray 위해 raw IN 절 사용
+  const tickerList = tickers.map((t) => `'${t.replace(/'/g, "")}'`).join(",");
+  const ltmRows = tickers.length
+    ? await db.execute(sql.raw(`
+        with ranked as (
+          select ticker, fiscal_year, fiscal_quarter, net_income,
+                 row_number() over (
+                   partition by ticker
+                   order by fiscal_year desc, fiscal_quarter desc
+                 ) as rn
+          from financials
+          where ticker in (${tickerList}) and period_type = 'Q'
+            and net_income is not null
+        )
+        select ticker, sum(net_income::numeric)::numeric as ltm_ni, count(*) as n
+        from ranked where rn <= 4
+        group by ticker
+        having count(*) = 4
+      `))
+    : [];
+  const ltmNiByTicker = new Map<string, number>();
+  for (const r of ltmRows) {
+    ltmNiByTicker.set(String(r.ticker), Number(r.ltm_ni));
+  }
+
   // 최근 이벤트도 같은 ticker 셋으로 batch fetch
   const eventRows = tickers.length
     ? await db
@@ -176,7 +204,10 @@ export async function getCandidates(opts: {
       : fin?.totalEquity
         ? Number(fin.totalEquity)
         : null;
-    const ni = fin?.netIncome ? Number(fin.netIncome) : null;
+    const annualNi = fin?.netIncome ? Number(fin.netIncome) : null;
+    // PER용 순이익 — LTM(최근 4분기 합) 우선, 없으면 annual 폴백
+    const ltmNi = ltmNiByTicker.get(r.ticker);
+    const ni = ltmNi !== undefined ? ltmNi : annualNi;
     const pbr = mc !== null && eq !== null && eq > 0 ? mc / eq : null;
     const per = mc !== null && ni !== null && ni > 0 ? mc / ni : null;
     return {
@@ -455,6 +486,38 @@ export async function getStockDetail(ticker: string): Promise<StockDetail | null
       title: e.title,
     })),
   };
+}
+
+export async function getPriceSeriesMulti(
+  tickers: string[],
+  startDate: string,
+  endDate: string,
+): Promise<Map<string, Map<string, number>>> {
+  if (tickers.length === 0) return new Map();
+  const rows = await db
+    .select({
+      ticker: prices.ticker,
+      date: prices.date,
+      close: prices.close,
+    })
+    .from(prices)
+    .where(
+      and(
+        inArray(prices.ticker, tickers),
+        gte(prices.date, startDate),
+        lte(prices.date, endDate),
+      ),
+    )
+    .orderBy(prices.ticker, prices.date);
+  const out = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    const t = String(r.ticker);
+    const d = String(r.date);
+    const close = Number(r.close);
+    if (!out.has(t)) out.set(t, new Map());
+    out.get(t)!.set(d, close);
+  }
+  return out;
 }
 
 export async function getPriceSeries(

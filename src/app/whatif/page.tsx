@@ -4,6 +4,7 @@ import {
   getBacktestHistory,
   getKospiSeries,
   getLatestBacktest,
+  getPriceSeriesMulti,
   getStockNames,
 } from "@/lib/queries";
 import { BacktestChart } from "@/components/backtest-chart";
@@ -51,31 +52,59 @@ export default async function Page({
     );
   }
 
-  // KOSPI 시계열 + 시스템 NAV → 누적 수익률 동시 차트용 데이터
+  // KOSPI 시계열
   const kospi = await getKospiSeries(run.startDate, run.endDate);
   const kospiStart = kospi[0]?.close ?? 1;
-  const kospiByDate = new Map(kospi.map((p) => [p.date, p.close / kospiStart - 1]));
+  const kospiByDate = new Map(kospi.map((p) => [p.date, p.close]));
 
-  // 시스템 NAV → 누적 수익률
-  const navByDate = new Map(
-    run.portfolioHistory.map((s) => [s.date, s.nav / run.initialCapital - 1]),
+  // 시스템 NAV — rebalance 사이를 일별로 보간:
+  // 각 거래일에 그 시점 보유 종목 가격으로 NAV 계산
+  // 1. 모든 보유 종목의 가격 시계열을 한 번에 fetch
+  const allTickers = Array.from(
+    new Set(run.portfolioHistory.flatMap((s) => Object.keys(s.holdings))),
   );
+  const pricesByTicker = await getPriceSeriesMulti(allTickers, run.startDate, run.endDate);
 
-  // 두 시리즈를 같은 date set으로 정렬 (시스템 rebalance dates 기준)
-  const chartData = run.portfolioHistory.map((s) => {
-    // KOSPI는 그 날짜에 정확히 없을 수 있음 (휴장) — 가장 가까운 거래일
-    let kospiRet = kospiByDate.get(s.date);
-    if (kospiRet === undefined) {
-      // 가장 가까운 prev kospi 찾기
-      const sorted = kospi.filter((p) => p.date <= s.date);
-      kospiRet = sorted.length > 0 ? sorted[sorted.length - 1].close / kospiStart - 1 : 0;
+  // 2. 각 거래일마다, 가장 최근 rebalance의 holdings + cash로 NAV 계산
+  // KOSPI 거래일을 day 기준으로 사용 (KS11 데이터 기반 = 한국 거래일과 같음)
+  const sortedSnapshots = [...run.portfolioHistory].sort((a, b) =>
+    a.date.localeCompare(b.date),
+  );
+  const dailyNav: { date: string; nav: number }[] = [];
+  for (const k of kospi) {
+    // 이 거래일에 적용되는 가장 최근 snapshot 찾기
+    let active = null;
+    for (const s of sortedSnapshots) {
+      if (s.date <= k.date) active = s;
+      else break;
     }
-    return {
-      date: s.date,
-      ours: navByDate.get(s.date) ?? 0,
-      kospi: kospiRet,
-    };
-  });
+    if (!active) {
+      dailyNav.push({ date: k.date, nav: run.initialCapital });
+      continue;
+    }
+    let nav = active.cash;
+    for (const [t, qty] of Object.entries(active.holdings)) {
+      const closesByDate = pricesByTicker.get(t);
+      if (!closesByDate) continue;
+      // 그 날짜의 close, 없으면 가장 최근 prev
+      let close = closesByDate.get(k.date);
+      if (close === undefined) {
+        // fall back: 가장 최근 이전 거래일
+        for (const [d, c] of closesByDate) {
+          if (d <= k.date) close = c;
+          else break;
+        }
+      }
+      if (close !== undefined) nav += close * qty;
+    }
+    dailyNav.push({ date: k.date, nav });
+  }
+
+  const chartData = dailyNav.map((p) => ({
+    date: p.date,
+    ours: p.nav / run.initialCapital - 1,
+    kospi: (kospiByDate.get(p.date) ?? kospiStart) / kospiStart - 1,
+  }));
 
   // 마지막 거래들 + 종목명 매핑
   const recentTrades = run.trades.slice(-15).reverse();

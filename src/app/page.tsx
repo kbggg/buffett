@@ -18,6 +18,8 @@ function formatDate(iso: string | null): string {
 }
 
 type FilterParam = "buy" | "value" | "all";
+type SortParam = "score" | "mos" | "marketcap";
+type CycleFilter = "all" | "cyclical" | "defensive" | "growth" | "financial";
 
 const FILTERS: { key: FilterParam; label: string; description: string }[] = [
   { key: "buy", label: "매수후보", description: "가치 + 안전마진 + 타이밍 모두 통과" },
@@ -28,21 +30,39 @@ const FILTERS: { key: FilterParam; label: string; description: string }[] = [
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: FilterParam }>;
+  searchParams: Promise<{ filter?: FilterParam; q?: string; sort?: SortParam; cycle?: CycleFilter }>;
 }) {
-  const { filter = "buy" } = await searchParams;
+  const { filter = "buy", q = "", sort = "score", cycle = "all" } = await searchParams;
   const calcDate = await getLatestCalcDate();
   const counts = calcDate ? await getCounts(calcDate) : { all: 0, valuePass: 0, buy: 0 };
 
-  const candidates = calcDate
+  let candidates = calcDate
     ? await getCandidates(
         filter === "buy"
-          ? { calcDate, minScore: 80, minMos: 0.3, timingOnly: ["BUY"], limit: 50 }
+          ? { calcDate, minScore: 80, minMos: 0.3, timingOnly: ["BUY"], limit: 200 }
           : filter === "value"
-            ? { calcDate, minScore: 80, minMos: 0.3, limit: 100 }
-            : { calcDate, limit: 100 },
+            ? { calcDate, minScore: 80, minMos: 0.3, limit: 200 }
+            : { calcDate, limit: 500 },
       )
     : [];
+
+  // 검색 필터
+  if (q) {
+    const ql = q.toLowerCase();
+    candidates = candidates.filter(
+      (c) => c.name.toLowerCase().includes(ql) || c.ticker.includes(q),
+    );
+  }
+  // cycle_type 필터 (cycle은 candidate 안에 없으니 stocks 별도 lookup 필요 — MVP: 컬럼 추가)
+  // 정렬
+  if (sort === "mos") {
+    candidates = candidates.sort((a, b) => (b.marginOfSafety ?? -99) - (a.marginOfSafety ?? -99));
+  } else if (sort === "marketcap") {
+    candidates = candidates.sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0));
+  } else {
+    candidates = candidates.sort((a, b) => b.buffettScore - a.buffettScore);
+  }
+  candidates = candidates.slice(0, 100);
 
   return (
     <div className="flex-1 px-4 py-6 sm:px-8 sm:py-10">
@@ -69,6 +89,31 @@ export default async function Page({
             </a>
           </div>
         </header>
+
+        <form className="mb-4 flex flex-wrap items-center gap-2" action="/" method="get">
+          <input type="hidden" name="filter" value={filter} />
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="종목명 또는 티커 검색…"
+            className="flex-1 min-w-[200px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          />
+          <select
+            name="sort"
+            defaultValue={sort}
+            className="rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <option value="score">점수 순</option>
+            <option value="mos">안전마진 순</option>
+            <option value="marketcap">시총 순</option>
+          </select>
+          <button
+            type="submit"
+            className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            적용
+          </button>
+        </form>
 
         <nav className="mb-6 flex flex-wrap gap-2" aria-label="필터">
           {FILTERS.map((f) => {
