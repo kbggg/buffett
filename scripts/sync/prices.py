@@ -134,14 +134,22 @@ def upsert(rows: Iterable[PriceRow]) -> int:
     return n
 
 
-def _list_target_tickers(include_preferred: bool) -> list[str]:
+def _list_target_tickers(include_preferred: bool, markets: list[str] | None = None) -> list[str]:
     engine = get_engine()
-    sql = "select ticker from stocks"
+    where = []
+    params: dict = {}
     if not include_preferred:
-        sql += " where not is_preferred"
+        where.append("not is_preferred")
+    if markets:
+        placeholders = ",".join(f":m{i}" for i in range(len(markets)))
+        where.append(f"market in ({placeholders})")
+        params.update({f"m{i}": m for i, m in enumerate(markets)})
+    sql = "select ticker from stocks"
+    if where:
+        sql += " where " + " and ".join(where)
     sql += " order by ticker"
     with engine.connect() as conn:
-        return [r.ticker for r in conn.execute(text(sql)).all()]
+        return [r.ticker for r in conn.execute(text(sql), params).all()]
 
 
 def main() -> int:
@@ -164,14 +172,26 @@ def main() -> int:
         default=0.0,
         help="Seconds to sleep between tickers when --all (default: 0)",
     )
+    parser.add_argument(
+        "--markets",
+        default=None,
+        help="comma-separated markets to filter (e.g. 'KOSPI'). default: all markets",
+    )
     args = parser.parse_args()
+    markets = (
+        [m.strip().upper() for m in args.markets.split(",") if m.strip()]
+        if args.markets else None
+    )
 
     end = date.today()
     start = end - timedelta(days=args.years * 366)
 
     if args.all:
-        tickers = _list_target_tickers(include_preferred=args.include_preferred)
-        print(f"[prices] mode = ALL ({len(tickers)} tickers, {args.years}y back)")
+        tickers = _list_target_tickers(
+            include_preferred=args.include_preferred, markets=markets,
+        )
+        mlabel = f"/{','.join(markets)}" if markets else ""
+        print(f"[prices] mode = ALL ({len(tickers)} tickers{mlabel}, {args.years}y back)")
     else:
         tickers = list(TEST_TICKERS)
         print(f"[prices] mode = TEST ({len(tickers)} tickers, {args.years}y back)")

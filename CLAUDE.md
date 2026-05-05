@@ -232,27 +232,27 @@ buffett/
 
 ---
 
-## 현재 진행 상황 (2026-05-03 기준)
+## 현재 진행 상황 (2026-05-05 기준)
 
-- [x] 한국투자증권 계좌 개설
-- [x] KIS Developers API 키 발급
-- [x] OpenDART API 키 발급
-- [x] Supabase 프로젝트 생성
-- [x] GitHub 저장소 생성 + 로컬 클론
-- [x] Next.js 프로젝트 부트스트랩 (Next.js 16.2.4 + React 19 + TS + Tailwind 4)
-- [x] DB 스키마 작성 (`src/db/schema.ts`, 7 tables) + 초기 마이그레이션 SQL 생성
-- [x] Supabase 마이그레이션 적용 (7 tables + 6 enums in `public` schema)
-- [x] Python 3.14 + uv 환경 부트스트랩 (`scripts/pyproject.toml`)
-- [x] 종목 마스터 수집 — FDR 기반, KOSPI 949 + KOSDAQ 1,823 = 2,772종목 동기화
-- [x] OpenDART corp_code 매핑 — 2,659개 매칭 (96%, 누락은 거의 전부 우선주)
-- [x] 가격 데이터 수집 — 2,772종목 × 5년치 = 3,056,540행 (FDR)
-- [x] 재무 모듈 검증 (12개 업종 다양성 + 매핑 robustness)
-- [x] 재무제표 Y2025 + Y2024 backfill 완료 (2,646 + 2,551 종목, ~21k rows)
-- [x] **Phase 2 분석 엔진 완성**: Buffett Score (100점) + 내재가치 3종 + 안전마진 + 타이밍 신호 (52w/RSI/MA200)
-- [x] **분석 스코프**: KOSPI 한정 (KOSDAQ 거래량 부족으로 제외)
-- [ ] Y2023~Y2021 KOSPI backfill (~10k calls, 1일 안에 완료) ← 내일
-- [ ] commit/push + GitHub Actions cron 가동 검증 ← 내일
-- [ ] Phase 3 UI 시작 (Today 화면)
+- [x] 한국투자증권 계좌 개설 + KIS API 키 + OpenDART API 키
+- [x] Supabase 프로젝트 + GitHub 저장소
+- [x] Next.js 16.2.4 + React 19 + TS + Tailwind 4 부트스트랩
+- [x] DB 스키마 (`src/db/schema.ts`) + 마이그레이션 9건 적용
+- [x] Python 3.14 + uv 환경
+- [x] 종목 마스터 + corp_code 매핑 (KOSPI 949 + KOSDAQ 1,823, corp_code 2,659개)
+- [x] 가격 데이터 5년치 (~3M rows)
+- [x] 재무제표 Y2021~Y2025 KOSPI backfill 완료
+- [x] **Phase 2 분석 엔진**: Buffett Score + 내재가치 3종 + 안전마진 + 타이밍 신호
+- [x] **Phase 3 UI**: Today / Stock Detail / Portfolio / What If / Decisions / Rankings / Profile
+- [x] **닉네임 멀티유저** (쿠키, 무인증) + 랭킹 + 프로필 export/import/reset
+- [x] **사이클 인식**: KSIC 2-digit 코드 매핑 (cyclical 522 / financial 112 / defensive 104 / growth 89, KOSPI)
+- [x] **추천 액션**: 7단계 (BUY_NOW ~ SELL_URGENT) + 가격 가이드
+- [x] **5년 백테스트 1회 실행** (2021-05~2026-05): 2023년 이후 정상 작동 시 연 +10.4% (목표 8~12% 달성)
+      ※ 처음 2년은 historical financials 부족으로 매수 0건 → Y2020/Y2019 backfill 필요
+- [x] Vercel 배포 (sin1 region) + GitHub Actions cron (5am KST, KOSPI-only로 최적화)
+- [ ] **Y2020/Y2019 KOSPI backfill** ← 백테스트 시작 구간 보강 (~6,700 OpenDART calls)
+- [ ] 백테스트 재실행 (full history) → KOSPI 대비 비교 정상화
+- [ ] Phase 5: KIS 모의투자 API 연동 (시그널 검증)
 
 ---
 
