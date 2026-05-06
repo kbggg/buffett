@@ -3,6 +3,9 @@ import { getNickname } from "@/lib/nickname";
 import { CandidateCard } from "@/components/candidate-card";
 import { InvestmentPlan, type PlanCandidate } from "@/components/investment-plan";
 import { SellAlerts } from "@/components/sell-alerts";
+import { RebalanceBanner } from "@/components/rebalance-banner";
+
+const TOP_POSITIONS = 10; // 백테스트 max_positions 동일
 
 // 매도 신호 + 사용자 포트폴리오 즉시 반영. scores는 자체적으로 일별만 변하므로 OK.
 export const dynamic = "force-dynamic";
@@ -41,7 +44,7 @@ export default async function Page({
   const { filter = "buy", q = "", sort = "score", cycle = "all" } = await searchParams;
   const nickname = await getNickname();
   const calcDate = await getLatestCalcDate();
-  const [counts, buyNowList, candidatesAll, holdings] = calcDate
+  const [counts, buyNowList, candidatesAll, holdings, valuePassTop] = calcDate
     ? await Promise.all([
         getCounts(calcDate),
         getCandidates({
@@ -55,8 +58,15 @@ export default async function Page({
               : { calcDate, limit: 500 },
         ),
         getPortfolio(nickname),
+        // 백테스트 규칙: 매수후보 상위 N (Score≥80 + MoS≥30%, score+mos 정렬). 랭킹 이탈 판정용.
+        getCandidates({ calcDate, minScore: 80, minMos: 0.3, limit: TOP_POSITIONS }),
       ])
-    : [{ all: 0, valuePass: 0, buy: 0 }, [], [], []];
+    : [{ all: 0, valuePass: 0, buy: 0 }, [], [], [], []];
+
+  const topTickers = valuePassTop.map((c) => c.ticker);
+  const topTickerSet = new Set(topTickers);
+  const openHoldings = holdings.filter((h) => !h.isClosed);
+  const rankDropCount = openHoldings.filter((h) => !topTickerSet.has(h.ticker)).length;
 
   // 투자 계획용 — 3중 통과 종목 + 현재가 추출 (breakdown.timing.current_price)
   const planCandidates: PlanCandidate[] = buyNowList
@@ -133,9 +143,16 @@ export default async function Page({
           </div>
         </header>
 
-        {/* 매도 신호 — 보유 종목 중 매도 검토/긴급 매도 */}
+        {/* 분기 리밸런스 — 백테스트와 동일한 점검 시점 안내 */}
+        <RebalanceBanner
+          buyCount={counts.valuePass}
+          holdingCount={openHoldings.length}
+          rankDropCount={rankDropCount}
+        />
+
+        {/* 매도 신호 — 보유 종목 중 매도 검토/긴급 매도 + 랭킹 이탈 */}
         <div className="mb-6">
-          <SellAlerts positions={holdings} nickname={nickname} />
+          <SellAlerts positions={holdings} nickname={nickname} topTickers={topTickers} />
         </div>
 
         {/* 오늘 투자 계획 — 매수후보 3중 통과 종목에 동등 분배 */}
