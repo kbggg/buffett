@@ -1,9 +1,13 @@
 import { getCandidates, getCounts, getLatestCalcDate, getPortfolio } from "@/lib/queries";
 import { getNickname } from "@/lib/nickname";
 import { CandidateCard } from "@/components/candidate-card";
-import { InvestmentPlan, type PlanCandidate } from "@/components/investment-plan";
-import { SellAlerts } from "@/components/sell-alerts";
+import {
+  InvestmentPlan,
+  type PlanCandidate,
+  type SellSignal,
+} from "@/components/investment-plan";
 import { RebalanceBanner } from "@/components/rebalance-banner";
+import { recommend } from "@/lib/recommendation";
 
 const TOP_POSITIONS = 10; // 백테스트 max_positions 동일
 
@@ -68,6 +72,49 @@ export default async function Page({
   const openHoldings = holdings.filter((h) => !h.isClosed);
   const rankDropCount = openHoldings.filter((h) => !topTickerSet.has(h.ticker)).length;
 
+  // 매도 신호 — 추천 액션 + 랭킹 이탈 통합. (백테스트 규칙 = 분기말 강제 점검)
+  const sellSignals: SellSignal[] = [];
+  for (const p of openHoldings) {
+    const rec = recommend({
+      buffettScore: p.buffettScore,
+      marginOfSafety: p.marginOfSafety,
+      timingSignal: p.timingSignal,
+      intrinsicAvg: p.intrinsicAvg,
+      recentNegativeEvents: p.recentNegativeEvents,
+      isHolding: true,
+      buyPrice: p.buyPrice,
+    });
+    if (rec.action === "SELL_URGENT" || rec.action === "SELL_REVIEW") {
+      sellSignals.push({
+        positionId: p.id,
+        ticker: p.ticker,
+        name: p.name,
+        action: rec.action,
+        reason: rec.reason,
+        buyPrice: p.buyPrice,
+        currentPrice: p.currentPrice,
+        pnlPct: p.pnlPct,
+      });
+    } else if (topTickers.length > 0 && !topTickerSet.has(p.ticker)) {
+      sellSignals.push({
+        positionId: p.id,
+        ticker: p.ticker,
+        name: p.name,
+        action: "RANK_DROP",
+        reason: `매수후보 상위 ${TOP_POSITIONS}에서 이탈 — 분기 리밸런스 시 교체 대상`,
+        buyPrice: p.buyPrice,
+        currentPrice: p.currentPrice,
+        pnlPct: p.pnlPct,
+      });
+    }
+  }
+  const SEVERITY: Record<SellSignal["action"], number> = {
+    SELL_URGENT: 0,
+    SELL_REVIEW: 1,
+    RANK_DROP: 2,
+  };
+  sellSignals.sort((a, b) => SEVERITY[a.action] - SEVERITY[b.action]);
+
   // 투자 계획용 — 3중 통과 종목 + 현재가 추출 (breakdown.timing.current_price)
   const planCandidates: PlanCandidate[] = buyNowList
     .map((c) => {
@@ -108,39 +155,29 @@ export default async function Page({
   return (
     <div className="flex-1 px-4 py-6 sm:px-8 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <header className="mb-8 flex items-start justify-between gap-4">
+        <header className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">오늘 살 만한 종목</h1>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            <h1 className="text-xl font-bold tracking-tight sm:text-3xl">오늘 살 만한 종목</h1>
+            <p className="mt-1 text-xs text-zinc-500 sm:text-sm dark:text-zinc-400">
               {formatDate(calcDate)} 기준 · KOSPI · 워렌 버핏 가치투자 원칙
             </p>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <a
-              href="/portfolio"
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              Portfolio →
-            </a>
-            <a
-              href="/rankings"
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              🏆 랭킹 →
-            </a>
-            <a
-              href="/decisions"
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              결정 로그 →
-            </a>
-            <a
-              href="/whatif"
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              What If →
-            </a>
-          </div>
+          <nav className="-mx-1 flex flex-wrap gap-1.5 sm:mx-0 sm:gap-2">
+            {[
+              { href: "/portfolio", label: "Portfolio" },
+              { href: "/rankings", label: "🏆 랭킹" },
+              { href: "/decisions", label: "결정 로그" },
+              { href: "/whatif", label: "What If" },
+            ].map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 sm:px-3 sm:py-2 sm:text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                {l.label} →
+              </a>
+            ))}
+          </nav>
         </header>
 
         {/* 분기 리밸런스 — 백테스트와 동일한 점검 시점 안내 */}
@@ -150,14 +187,9 @@ export default async function Page({
           rankDropCount={rankDropCount}
         />
 
-        {/* 매도 신호 — 보유 종목 중 매도 검토/긴급 매도 + 랭킹 이탈 */}
+        {/* 오늘의 액션 — 매도 신호 + 매수 분배 통합 */}
         <div className="mb-6">
-          <SellAlerts positions={holdings} nickname={nickname} topTickers={topTickers} />
-        </div>
-
-        {/* 오늘 투자 계획 — 매수후보 3중 통과 종목에 동등 분배 */}
-        <div className="mb-6">
-          <InvestmentPlan candidates={planCandidates} />
+          <InvestmentPlan candidates={planCandidates} sellSignals={sellSignals} />
         </div>
 
         <form className="mb-4 flex flex-wrap items-center gap-2" action="/" method="get">
@@ -166,7 +198,7 @@ export default async function Page({
             name="q"
             defaultValue={q}
             placeholder="종목명 또는 티커 검색…"
-            className="flex-1 min-w-[200px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="w-full min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm sm:w-auto dark:border-zinc-700 dark:bg-zinc-900"
           />
           <select
             name="sort"
@@ -185,7 +217,7 @@ export default async function Page({
           </button>
         </form>
 
-        <nav className="mb-6 flex flex-wrap gap-2" aria-label="필터">
+        <nav className="mb-3 flex flex-wrap gap-2" aria-label="필터">
           {FILTERS.map((f) => {
             const isActive = filter === f.key;
             const count =
@@ -195,7 +227,7 @@ export default async function Page({
                 key={f.key}
                 href={`?filter=${f.key}`}
                 className={
-                  "group inline-flex items-baseline gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors " +
+                  "group inline-flex items-baseline gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:gap-2 sm:px-4 sm:py-2 sm:text-sm " +
                   (isActive
                     ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
                     : "bg-white text-zinc-700 hover:bg-zinc-100 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800")
@@ -204,7 +236,7 @@ export default async function Page({
                 <span>{f.label}</span>
                 <span
                   className={
-                    "text-xs " +
+                    "text-[10px] sm:text-xs " +
                     (isActive
                       ? "text-white/70 dark:text-zinc-900/70"
                       : "text-zinc-400 dark:text-zinc-500")
@@ -215,10 +247,10 @@ export default async function Page({
               </a>
             );
           })}
-          <p className="ml-2 self-center text-xs text-zinc-500 dark:text-zinc-400">
-            {FILTERS.find((f) => f.key === filter)?.description}
-          </p>
         </nav>
+        <p className="mb-6 text-xs text-zinc-500 dark:text-zinc-400">
+          {FILTERS.find((f) => f.key === filter)?.description}
+        </p>
 
         {candidates.length === 0 ? (
           <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-12 text-center dark:border-zinc-700 dark:bg-zinc-900">

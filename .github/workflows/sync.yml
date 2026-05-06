@@ -1,11 +1,11 @@
 name: Daily Data Sync
 
-# 매일 새벽 5시 KST = 20:00 UTC (전일). CLAUDE.md "매일 새벽 5시 KST" 명시.
+# 매일 새벽 1시 KST = 16:00 UTC (전일). KOSPI 장마감(15:30) + 공시 안정화 후.
 # - schedule (cron):  최근 1년치만 갱신 (빠른 incremental)
 # - workflow_dispatch: 수동 트리거. backfill 시 target_year 지정 가능.
 on:
   schedule:
-    - cron: "0 20 * * *"
+    - cron: "0 16 * * *"
   workflow_dispatch:
     inputs:
       job:

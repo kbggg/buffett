@@ -31,32 +31,32 @@ export function RebalanceBanner({ buyCount, holdingCount, rankDropCount }: Props
   const isToday = daysLeft === 0;
 
   return (
-    <section className="mb-6 rounded-xl border-2 border-violet-300 bg-violet-50 p-5 dark:border-violet-700 dark:bg-violet-950/30">
+    <section className="mb-6 rounded-xl border-2 border-violet-300 bg-violet-50 p-4 sm:p-5 dark:border-violet-700 dark:bg-violet-950/30">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-violet-900 dark:text-violet-200">
+          <h2 className="text-sm font-bold text-violet-900 sm:text-base dark:text-violet-200">
             🔄 분기 리밸런스 시기 — {isToday ? "오늘이 점검일" : `D-${daysLeft} (${date})`}
           </h2>
           <p className="mt-1 text-xs text-violet-800 dark:text-violet-300">
-            백테스트와 동일하게 분기마다 한 번 점검하면 같은 결과를 따라갑니다. 매수후보 vs 보유를 비교하세요.
+            백테스트와 동일하게 분기마다 한 번 점검하면 같은 결과를 따라갑니다.
           </p>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-        <Stat label="현재 매수후보" value={buyCount} sub="가치+안전마진+타이밍 통과" />
-        <Stat label="보유 종목" value={holdingCount} sub="현재 포트폴리오" />
+      <div className="mt-4 grid grid-cols-3 gap-2 text-sm sm:gap-3">
+        <Stat label="매수후보" value={buyCount} sub="가치+안전마진" />
+        <Stat label="보유" value={holdingCount} sub="포트폴리오" />
         <Stat
           label="랭킹 이탈"
           value={rankDropCount}
-          sub="보유 중 매수후보에서 빠짐"
+          sub="매수후보에서 빠짐"
           tone={rankDropCount > 0 ? "warn" : "ok"}
         />
       </div>
 
-      <ul className="mt-4 list-disc space-y-1 pl-5 text-xs text-violet-800 dark:text-violet-300">
+      <ul className="mt-4 list-disc space-y-1 pl-5 text-[11px] text-violet-800 sm:text-xs dark:text-violet-300">
         <li>이탈 종목은 매도 검토 (백테스트 규칙)</li>
-        <li>매수후보 상위 10종목 균등 분배 (아래 “오늘 투자 계획” 참고)</li>
+        <li>매수후보 상위 10종목 균등 분배</li>
         <li>거래비용 약 0.4% 가정</li>
       </ul>
     </section>
@@ -81,10 +81,10 @@ function Stat({
         ? "text-emerald-700 dark:text-emerald-300"
         : "text-violet-900 dark:text-violet-100";
   return (
-    <div className="rounded-lg bg-white p-3 dark:bg-zinc-900/60">
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
-      <p className={`mt-0.5 text-2xl font-bold tabular-nums ${valueColor}`}>{value}</p>
-      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{sub}</p>
+    <div className="rounded-lg bg-white p-2.5 sm:p-3 dark:bg-zinc-900/60">
+      <p className="text-[10px] text-zinc-500 sm:text-xs dark:text-zinc-400">{label}</p>
+      <p className={`mt-0.5 text-xl font-bold tabular-nums sm:text-2xl ${valueColor}`}>{value}</p>
+      <p className="mt-0.5 text-[10px] text-zinc-500 sm:text-xs dark:text-zinc-400">{sub}</p>
     </div>
   );
 }
