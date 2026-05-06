@@ -28,15 +28,15 @@ export default async function Page() {
         </Link>
 
         <header>
-          <h1 className="text-2xl font-bold">프로필 관리 — {nickname}</h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <h1 className="text-xl font-bold sm:text-2xl">프로필 관리 — {nickname}</h1>
+          <p className="mt-1 text-xs text-zinc-500 sm:text-sm dark:text-zinc-400">
             현재 닉네임의 데이터만 다룹니다. 종목/재무/점수 같은 분석 데이터는 공유.
           </p>
         </header>
 
-        <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="mb-3 text-base font-bold">현재 데이터</h2>
-          <div className="grid grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3 sm:gap-4">
             <div>
               <p className="text-xs text-zinc-500">보유 종목</p>
               <p className="mt-1 text-xl font-bold tabular-nums">

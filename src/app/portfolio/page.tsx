@@ -48,10 +48,10 @@ export default async function PortfolioPage() {
           ← Today
         </Link>
 
-        <header className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <header className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold">{nickname}의 포트폴리오</h1>
+              <h1 className="text-xl font-bold sm:text-2xl">{nickname}의 포트폴리오</h1>
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                 보유 {open.length}종목 · 청산 {closed.length}종목 · 수동 입력 (KIS 자동 동기화는 Phase 5)
               </p>
@@ -106,7 +106,7 @@ export default async function PortfolioPage() {
         <AddPositionForm />
 
         {/* 보유 중 */}
-        <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="mb-4 text-base font-bold">보유 중 ({open.length})</h2>
           {open.length === 0 ? (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">보유 종목이 없습니다.</p>
@@ -117,7 +117,7 @@ export default async function PortfolioPage() {
 
         {/* 현금 잔액 history */}
         {cash.entries.length > 0 && (
-          <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="mb-4 text-base font-bold">현금 잔액 ({fmtMoney(cash.total)})</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -152,7 +152,7 @@ export default async function PortfolioPage() {
 
         {/* 청산 */}
         {closed.length > 0 && (
-          <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="mb-4 text-base font-bold">청산 ({closed.length})</h2>
             <PositionTable positions={closed} />
           </section>

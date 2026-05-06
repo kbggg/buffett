@@ -62,10 +62,10 @@ export default async function Page({
   ]);
   if (!detail) notFound();
   const holding = portfolio.find((p) => p.ticker === ticker && !p.isClosed);
+  // eslint-disable-next-line react-hooks/purity -- server component, Date.now is fine
+  const cutoff = Date.now() - 90 * 86400_000;
   const recentNeg = detail.events.filter(
-    (e) =>
-      e.category === "negative" &&
-      new Date(e.date) >= new Date(Date.now() - 90 * 86400_000),
+    (e) => e.category === "negative" && new Date(e.date).getTime() >= cutoff,
   ).length;
   const rec = recommend({
     buffettScore: detail.buffettScore,
@@ -104,11 +104,11 @@ export default async function Page({
         </Link>
 
         {/* Header */}
-        <header className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold">{detail.name}</h1>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+        <header className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold sm:text-2xl">{detail.name}</h1>
+              <p className="mt-1 text-xs text-zinc-500 sm:text-sm dark:text-zinc-400">
                 {detail.ticker} · {detail.market} · 시총 {fmtMoney(detail.marketCap)} · 현재가 {fmtPrice(detail.latestPrice)}
               </p>
               {detail.annuals.length > 0 && (
@@ -170,7 +170,7 @@ export default async function Page({
         <PriceChart ticker={detail.ticker} initialData={initialPrices} />
 
         {/* Buffett Score 분해 */}
-        <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="mb-4 text-base font-bold">Buffett Score 분해</h2>
           <div className="space-y-3">
             {compEntries.map((c) => (
@@ -180,7 +180,7 @@ export default async function Page({
         </section>
 
         {/* 내재가치 */}
-        <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="mb-4 text-base font-bold">
             <Term name="내재가치" /> 계산 (3종 + 중앙값)
           </h2>
@@ -200,9 +200,9 @@ export default async function Page({
 
         {/* 타이밍 신호 */}
         {timing && (
-          <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="mb-4 text-base font-bold">타이밍 신호</h2>
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3 sm:gap-4">
               <div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400"><Term name="52주위치" /></p>
                 <p className="mt-1 text-lg font-semibold tabular-nums">
@@ -243,7 +243,7 @@ export default async function Page({
 
         {/* 최근 이슈 */}
         {detail.events.length > 0 && (
-          <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="mb-4 text-base font-bold">최근 90일 이슈 ({detail.events.length}건)</h2>
             <ul className="space-y-1.5 text-sm">
               {detail.events.slice(0, 30).map((ev, i) => (

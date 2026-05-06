@@ -34,8 +34,8 @@ export default async function Page() {
         </Link>
 
         <header>
-          <h1 className="text-2xl font-bold">🏆 닉네임 랭킹</h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <h1 className="text-xl font-bold sm:text-2xl">🏆 닉네임 랭킹</h1>
+          <p className="mt-1 text-xs text-zinc-500 sm:text-sm dark:text-zinc-400">
             평가손익률 (현재 평가 vs 매수 원금) 순. 5분 캐시.
           </p>
         </header>

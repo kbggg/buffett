@@ -48,8 +48,8 @@ export default async function Page() {
           ← Today
         </Link>
 
-        <header className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h1 className="text-2xl font-bold">{nickname}의 결정 로그</h1>
+        <header className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <h1 className="text-xl font-bold sm:text-2xl">{nickname}의 결정 로그</h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             본인이 시점별로 내린 결정 + 그 이후 결과 = 시간 지날수록 가치 ↑.
             CLAUDE.md "본인이 안 산 종목/산 종목을 1년 후 돌아보기 위한 학습 데이터".

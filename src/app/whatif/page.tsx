@@ -41,7 +41,7 @@ export default async function Page({
     return (
       <div className="flex-1 px-4 py-10">
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-2xl font-bold">백테스트 결과 없음</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">백테스트 결과 없음</h1>
           <p className="mt-3 text-sm text-zinc-500">
             먼저 백테스트를 실행하세요:{" "}
             <code className="rounded bg-zinc-100 px-2 py-1 text-xs dark:bg-zinc-800">
@@ -133,8 +133,8 @@ export default async function Page({
           </Link>
         </div>
 
-        <header className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h1 className="text-2xl font-bold">What If — 시스템 따랐다면?</h1>
+        <header className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <h1 className="text-xl font-bold sm:text-2xl">What If — 시스템 따랐다면?</h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             {run.startDate} ~ {run.endDate} · 초기자본 {fmtMoney(run.initialCapital)} ·{" "}
             {run.rebalanceFrequency === "monthly" ? "월별" : "분기별"} 리밸런싱 ·{" "}
@@ -183,7 +183,7 @@ export default async function Page({
 
         <BacktestChart data={chartData} />
 
-        <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="mb-4 text-base font-bold">
             거래 history (최근 15건 / 총 {run.totalTrades})
           </h2>
@@ -236,7 +236,7 @@ export default async function Page({
         </section>
 
         {history.length > 1 && (
-          <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="mb-4 text-base font-bold">백테스트 history (최근 10건)</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

@@ -69,13 +69,13 @@ export default function NewBacktestPage() {
         </Link>
 
         <header className="mt-4 mb-6">
-          <h1 className="text-2xl font-bold">새 백테스트</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">새 백테스트</h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             파라미터를 조정해서 시뮬레이션. 실행 시 ~30초~수분 소요.
           </p>
         </header>
 
-        <form onSubmit={onSubmit} className="space-y-5 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <form onSubmit={onSubmit} className="space-y-5 rounded-xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <Field label="시작일" hint="report_date 이후의 날짜 권장 (Y2024 사업보고서: 2025-03-12 이후)">
             <input
               type="date"
